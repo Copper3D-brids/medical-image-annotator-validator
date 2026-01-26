@@ -34,7 +34,7 @@
  */
 import DefaultBar from "../components/AppBar.vue";
 import DefaultView from "./View.vue";
-import NavPanel from "@/components/nav-segmentation/NavPanel.vue";
+import NavPanel from "@/components/navigation/NavPanel.vue";
 import { useTheme } from "vuetify";
 import { ref } from "vue";
 import emitter from "@/plugins/custom-emitter";;

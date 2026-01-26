@@ -41,9 +41,9 @@
  * - useRightDistanceCalculation: Distance calculations
  * - useRightPanelModels: 3D model loading
  */
-import RightPanelCore from "@/components/view-components/RightPanelCore.vue";
-import TumourDistancePanelRight from "@/components/view-components/TumourDistancePanelRight.vue";
-import NavBarRight from "@/components/commonBar/NavBarRight.vue";
+import RightPanelCore from "@/components/viewer/RightPanelCore.vue";
+import TumourDistancePanelRight from "@/components/viewer/TumourDistancePanelRight.vue";
+import NavBarRight from "@/components/common/NavBarRight.vue";
 import * as THREE from "three";
 import "copper3d/dist/css/style.css";
 import * as Copper from "copper3d";
@@ -57,7 +57,7 @@ import {
   ILeftRightData,
   ISaveSphere,
 } from "@/models/apiTypes";
-import { switchAnimationStatus } from "@/components/view-components/leftCoreUtils";
+import { switchAnimationStatus } from "@/components/viewer/leftCoreUtils";
 import { PanelOperationManager } from "@/plugins/view-utils/utils-right";
 
 // Import composables

@@ -19,7 +19,7 @@ import {
 } from "@/models/apiTypes";
 import { useSingleFile, useReplaceMask, useClearMaskMesh, useInitMasks, useSaveMasks } from "@/plugins/api";
 import { convertInitMaskData } from "@/plugins/worker";
-import { switchAnimationStatus } from "@/components/view-components/leftCoreUtils";
+import { switchAnimationStatus } from "@/components/viewer/leftCoreUtils";
 import emitter from "@/plugins/custom-emitter";
 
 /**

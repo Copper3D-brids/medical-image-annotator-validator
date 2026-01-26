@@ -89,9 +89,9 @@
  * @emits updateSticky - Emitted when sticky mode is toggled
  */
 import * as Copper from "copper3d";
-import Switcher from "@/components/commonBar/Switcher.vue";
+import Switcher from "@/components/common/Switcher.vue";
 import { ref, onMounted, onUnmounted, watch, computed } from "vue";
-import Dialog from "@/components/commonBar/Dialog.vue";
+import Dialog from "@/components/common/Dialog.vue";
 import { IKeyboardSettings } from "@/models/apiTypes";
 
 

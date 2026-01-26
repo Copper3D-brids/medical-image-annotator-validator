@@ -11,7 +11,7 @@
 
 <script setup lang="ts">
 import { ref, onBeforeMount} from "vue";
-import LayoutTwoPanels from "@/components/view-components/LayoutTwoPanels.vue";
+import LayoutTwoPanels from "@/components/viewer/LayoutTwoPanels.vue";
 import LeftPanel from "./LeftPanelController.vue";
 import RightPanel from "./RightPanelController.vue";
 import {useToolConfig} from "@/plugins/api";

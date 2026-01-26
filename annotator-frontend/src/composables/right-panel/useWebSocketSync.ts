@@ -10,7 +10,7 @@
  */
 import { ref, type Ref } from "vue";
 import { useSingleFile } from "@/plugins/api";
-import { switchAnimationStatus } from "@/components/view-components/leftCoreUtils";
+import { switchAnimationStatus } from "@/components/viewer/leftCoreUtils";
 import * as Copper from "copper3d";
 import * as THREE from "three";
 import { IDetails } from "@/models/apiTypes";

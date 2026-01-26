@@ -20,7 +20,7 @@
  * @listens Segmentation:FinishLoadAllCaseImages - Enables model toggle after images load
  * @emits Common:ToggleRightModelVisibility - Emitted to show/hide 3D model
  */
-import Switcher from "@/components/commonBar/Switcher.vue";
+import Switcher from "@/components/common/Switcher.vue";
 import { ref, onMounted, onUnmounted } from "vue";
 import emitter from "@/plugins/custom-emitter";
 

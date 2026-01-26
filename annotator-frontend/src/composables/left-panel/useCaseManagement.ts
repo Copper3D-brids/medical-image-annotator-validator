@@ -20,7 +20,7 @@ import {
     IToolAfterLoadImagesResponse,
 } from "@/models/apiTypes";
 import { revokeAppUrls } from "@/plugins/view-utils/tools";
-import { switchAnimationStatus } from "@/components/view-components/leftCoreUtils";
+import { switchAnimationStatus } from "@/components/viewer/leftCoreUtils";
 import { useSegmentationCasesStore } from "@/store/app";
 import { storeToRefs } from "pinia";
 import emitter from "@/plugins/custom-emitter";

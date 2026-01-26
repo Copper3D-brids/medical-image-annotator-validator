@@ -67,10 +67,10 @@
  * - useLeftPanelEmitters: Event handling
  * - useDebugGui: Debug panel GUI
  */
-import LeftPanelCore from "@/components/view-components/LeftPanelCore.vue";
-import TumourDistancePanel from "@/components/view-components/TumourDistancePanelLeft.vue";
-import NavBar from "@/components/commonBar/NavBar.vue";
-import Upload from "@/components/commonBar/Upload.vue";
+import LeftPanelCore from "@/components/viewer/LeftPanelCore.vue";
+import TumourDistancePanel from "@/components/viewer/TumourDistancePanelLeft.vue";
+import NavBar from "@/components/common/NavBar.vue";
+import Upload from "@/components/common/Upload.vue";
 
 import { GUI } from "dat.gui";
 import "copper3d/dist/css/style.css";
@@ -84,7 +84,7 @@ import {
   IToolConfig
 } from "@/models/apiTypes";
 import emitter from "@/plugins/custom-emitter";
-import { switchAnimationStatus } from "@/components/view-components/leftCoreUtils";
+import { switchAnimationStatus } from "@/components/viewer/leftCoreUtils";
 
 // Import composables
 import {

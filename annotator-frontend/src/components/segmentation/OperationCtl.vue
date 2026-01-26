@@ -63,18 +63,18 @@
  * @emits Common:CloseCalculatorBox - Closes calculator panel
  * @emits SegmentationTrial:CalulatorTimerFunction - Timer control for calculator
  */
-import OperationAdvance from "./advance/OperationAdvance.vue";
+import OperationAdvance from "./OperationAdvance.vue";
 
-import Operation from "@/components/nav-components/Operation.vue"
-import FunctionalControl from "@/components/nav-components/functionalCtl/FunctionalControl.vue";
-import SliderControl from "@/components/nav-components/sliderCtl/SliderControl.vue";
-import ButtonsControl from "@/components/nav-components/buttonCtl/ButtonsControl.vue";
+import Operation from "@/components/navigation/Operation.vue"
+import FunctionalControl from "@/components/navigation/FunctionalControl.vue";
+import SliderControl from "@/components/navigation/SliderControl.vue";
+import ButtonsControl from "@/components/navigation/ButtonsControl.vue";
 import { ref, onMounted, onUnmounted } from "vue";
 import { storeToRefs } from "pinia";
 import emitter from "@/plugins/custom-emitter";
 import * as Copper from "copper3d";
 
-import { setTumourStudyPointPosition } from "@/components/utils";
+import { setTumourStudyPointPosition } from "@/components/viewer/utils";
 
 /** Type for tumour center position */
 type TTumourCenter = { center: { x: number; y: number; z: number; }};

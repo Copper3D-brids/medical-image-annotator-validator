@@ -60,7 +60,7 @@
  * @emits Segmentation:ContrastChanged - Emitted when contrast selection changes
  * @emits Segmentation:RegisterImageChanged - Emitted when register toggle changes
  */
-import Switcher from "@/components/commonBar/Switcher.vue";
+import Switcher from "@/components/common/Switcher.vue";
 import { ref, onMounted, onUnmounted, onBeforeMount } from "vue";
 import { useSegmentationCasesStore } from "@/store/app";
 import { storeToRefs } from "pinia";

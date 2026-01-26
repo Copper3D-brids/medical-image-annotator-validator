@@ -181,9 +181,6 @@ const updateSlider = () => {
 };
 
 watchEffect(() => {
-  console.log("immediateSliceNum", immediateSliceNum.value);
-  console.log("fileNum", fileNum.value);
-  console.log("contrastIndex", contrastIndex.value);
   currentSliderNum =
     immediateSliceNum.value * fileNum.value + contrastIndex.value;
   updateSlider();

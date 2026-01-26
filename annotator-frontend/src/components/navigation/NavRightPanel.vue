@@ -20,7 +20,7 @@
  * @description Collapsible navigation group for right panel (3D view) controls.
  * Contains RightPanelCtl for managing 3D model visibility and other settings.
  */
-import RightPanelCtl from "./tools/RightPanelCtl.vue";
+import RightPanelCtl from "@/components/segmentation/RightPanelCtl.vue";
 
 </script>
   

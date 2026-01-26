@@ -36,11 +36,11 @@
  * @emits Common:NavStickyMode - Emitted when sticky mode is toggled
  */
 import { ref, onMounted, onUnmounted } from "vue";
-import ImageCtl from "./tools/NrrdImageCtl.vue";
-import OperationCtl from "./tools/OperationCtl.vue";
+import ImageCtl from "@/components/segmentation/NrrdImageCtl.vue";
+import OperationCtl from "@/components/segmentation/OperationCtl.vue";
 import NavRightPanelCore from "./NavRightPanel.vue";
-import SysOpts from "../nav-components/sysopt/SysOpts.vue";
-import SysOptsCtl from "../nav-components/sysopt/SysOptsCtl.vue";
+import SysOpts from "@/components/segmentation/SysOpts.vue";
+import SysOptsCtl from "@/components/segmentation/SysOptsCtl.vue";
 import emitter from "@/plugins/custom-emitter";
 import * as Copper from "copper3d";
 
