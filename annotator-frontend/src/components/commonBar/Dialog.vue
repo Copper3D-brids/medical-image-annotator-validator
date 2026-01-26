@@ -59,8 +59,37 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Dialog Component
+ *
+ * @description Reusable modal dialog component with configurable:
+ * - Trigger button with customizable text, icon, and color
+ * - Title and description slots for content
+ * - Save/Cancel actions with event emissions
+ *
+ * Uses Vuetify v-dialog and v-sheet for styling.
+ *
+ * @slot title - Custom dialog title content
+ * @slot description - Custom description text
+ * @slot default - Main dialog body content
+ *
+ * @prop {number} max - Maximum dialog width
+ * @prop {number} min - Minimum dialog width
+ * @prop {string} btnText - Trigger button text
+ * @prop {string} btnColor - Trigger button color
+ * @prop {string} btnIcon - Trigger button prepend icon
+ * @prop {boolean} showDialog - Whether to show trigger button
+ * @prop {string} saveBtnName - Save button text
+ *
+ * @emits onOpen - Emitted when dialog opens
+ * @emits onCancel - Emitted when dialog is cancelled
+ * @emits onSave - Emitted when save button is clicked
+ */
 import { ref } from "vue";
 
+/**
+ * Dialog props interface
+ */
 interface DialogProps {
     max?: number;
     min?: number;
@@ -87,26 +116,41 @@ withDefaults(defineProps<DialogProps>(), {
     btnHeight:""
 });
 
+/** Dialog open state */
 const dialog = ref(false);
+
+/** Whether save was clicked (prevents cancel event on close) */
 const isSaved = ref(false);
+
 const emit = defineEmits([
     "onOpen",
     "onCancel",
     "onSave"
 ]);
 
+/**
+ * Opens the dialog and emits onOpen event.
+ */
 const openDialog = () => {
     dialog.value = true;
     isSaved.value = false;
     emit("onOpen");
 }
 
+/**
+ * Handles dialog cancel/close (after-leave event).
+ * Only emits onCancel if save was not clicked.
+ */
 const handleDialogCancel = () => {
     if(isSaved.value) return;
     emit("onCancel");
     dialog.value = false;
 }
 
+/**
+ * Handles save button click.
+ * Closes dialog and emits onSave event.
+ */
 const handleDialogSave = () => {
     dialog.value = false;
     isSaved.value = true;

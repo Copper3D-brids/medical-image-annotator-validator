@@ -23,8 +23,26 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Switcher Component
+ *
+ * @description Reusable toggle switch component with title label.
+ * Uses Vuetify v-switch with two-way binding support.
+ *
+ * @prop {string} title - Label text displayed next to switch
+ * @prop {boolean} controller - Current switch state (v-model supported)
+ * @prop {boolean|string} loading - Loading state for switch
+ * @prop {boolean} disabled - Whether switch is disabled
+ * @prop {string} label - On/Off label text
+ *
+ * @emits toggleUpdate - Emitted when switch value changes
+ * @emits update:controller - Emitted for v-model support
+ */
 import { ref, computed } from "vue";
 
+/**
+ * Component props interface
+ */
 type Props = {
   title: string;
   controller: boolean;
@@ -33,16 +51,19 @@ type Props = {
   label?: string;
 };
 
-// const controller = ref(false);
-
 let props = withDefaults(defineProps<Props>(), {
   loading: false,
   disabled: false,
   controller: false,
   label: "off",
 });
+
 const emit = defineEmits(["toggleUpdate", "update:controller"]);
 
+/**
+ * Computed property for two-way binding of switch state.
+ * Gets value from props, sets via emit for v-model support.
+ */
 const controller = computed({
   get() {
     return props.controller;
@@ -52,6 +73,9 @@ const controller = computed({
   },
 });
 
+/**
+ * Handles switch toggle and emits update event.
+ */
 const toggleUpdate = (value: any) => {
   emit("toggleUpdate", value);
 };

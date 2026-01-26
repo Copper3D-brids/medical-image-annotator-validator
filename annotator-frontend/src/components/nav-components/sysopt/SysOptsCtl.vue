@@ -69,6 +69,25 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * System Options Control Component
+ *
+ * @description Provides system-level configuration controls including:
+ * - Debug mode toggle
+ * - Sticky navigation setting
+ * - Keyboard shortcut configuration dialog
+ *
+ * Integrates with Copper3D NrrdTools for keyboard settings management.
+ *
+ * @prop {boolean} keyBoardSetting - Show keyboard settings dialog
+ * @prop {boolean} stickyNavSetting - Show sticky nav toggle
+ * @prop {boolean} debugSetting - Show debug mode toggle
+ * @prop {boolean} stick - Initial sticky mode state
+ * @prop {Copper.NrrdTools} nrrdTools - Copper3D NRRD tools instance
+ *
+ * @emits updateDebug - Emitted when debug mode is toggled
+ * @emits updateSticky - Emitted when sticky mode is toggled
+ */
 import * as Copper from "copper3d";
 import Switcher from "@/components/commonBar/Switcher.vue";
 import { ref, onMounted, onUnmounted, watch, computed } from "vue";
@@ -76,6 +95,9 @@ import Dialog from "@/components/commonBar/Dialog.vue";
 import { IKeyboardSettings } from "@/models/apiTypes";
 
 
+/**
+ * Props interface for component configuration
+ */
 interface Props {
   keyBoardSetting?: boolean;
   stickyNavSetting?: boolean;
@@ -93,12 +115,22 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits(["updateDebug","updateSticky"]);
 
-// const { nrrdTools } = storeToRefs(useNrrdToolsStore());
-
+/** Debug mode state */
 const debugMode = ref(false);
+
+/** Sticky navigation mode state */
 const stickyMode = ref(true);
+
+/** Label for debug mode switch */
 const switchDebugLabel = ref("off");
+
+/** Label for sticky mode switch */
 const switchStickyLabel = ref("on");
+
+/**
+ * Local copy of keyboard settings for editing in dialog.
+ * Changes are only applied when user clicks Save.
+ */
 const keyboardSettings = ref<IKeyboardSettings>({
   draw: '',
   undo: "",
@@ -106,11 +138,17 @@ const keyboardSettings = ref<IKeyboardSettings>({
   crosshair: "",
   mouseWheel: "",
 });
+
+/** Available mouse wheel mode options */
 const mouseModes = ref([
   "Scroll:Zoom",
   "Scroll:Slice",
 ]);
 
+/**
+ * Configuration data for keyboard settings form.
+ * Defines labels and types for each configurable key.
+ */
 const settingsData = ref([
   {
     label: "Key for Draw Mode:",
@@ -130,19 +168,19 @@ const settingsData = ref([
   },
 ])
 
-// const toolsKeyBoard = computed(()=>{
-//   if (!!nrrdTools.value) {
-//     return nrrdTools.value.nrrd_states.keyboardSettings;
-//   }else{
-//     return keyboardSettings.value;
-//   }
-// });
-
+/**
+ * Watch for nrrdTools changes and sync keyboard settings.
+ * Updates local settings when tools instance changes.
+ */
 watch(
   ()=>props.nrrdTools,
   ()=>{
     keyboardSettings.value = {...props.nrrdTools!.nrrd_states.keyboardSettings};
   });
+
+/**
+ * Watch for external sticky mode changes and update UI.
+ */
 watch(
   ()=>props.stick,
   (newVal)=>{
@@ -151,16 +189,33 @@ watch(
   }
 )
 
+/**
+ * Toggles debug mode and emits update event.
+ *
+ * @param value - New debug mode state
+ */
 function toggleDebug(value: boolean) {
   switchDebugLabel.value = switchDebugLabel.value === "on" ? "off" : "on";
   emit("updateDebug", value);
 }
 
+/**
+ * Toggles sticky navigation mode and emits update event.
+ *
+ * @param value - New sticky mode state
+ */
 function toggleSticky(value: boolean) {
   switchStickyLabel.value = switchStickyLabel.value === "on" ? "off" : "on";
   emit("updateSticky", value);
 }
 
+/**
+ * Handles keyboard input for configuring shortcut keys.
+ * Uses setTimeout to allow Vue to process the input event before updating.
+ *
+ * @param event - Keyboard event from input field
+ * @param type - Type of keyboard setting being configured
+ */
 function handleKeyDown(event: KeyboardEvent, type: string) {
   switch(type) {
     case "draw":
@@ -186,15 +241,29 @@ function handleKeyDown(event: KeyboardEvent, type: string) {
   }
 }
 
+/**
+ * Handles dialog open event.
+ * Enables keyboard configuration mode in NrrdTools to prevent
+ * keyboard shortcuts from triggering during configuration.
+ */
 function handleDialogOpen() {
   props.nrrdTools!.nrrd_states.configKeyBoard = true;
 }
 
+/**
+ * Handles dialog cancel event.
+ * Resets local keyboard settings to original values from NrrdTools.
+ */
 function handleDialogCancel() {
   props.nrrdTools!.nrrd_states.configKeyBoard = false;
   keyboardSettings.value = {...props.nrrdTools!.nrrd_states.keyboardSettings};
   
 }
+
+/**
+ * Handles dialog save event.
+ * Applies local keyboard settings to NrrdTools and updates mouse wheel event.
+ */
 function handleDialogSave() {
   props.nrrdTools!.nrrd_states.configKeyBoard = false;
   props.nrrdTools!.nrrd_states.keyboardSettings = {...keyboardSettings.value as any};

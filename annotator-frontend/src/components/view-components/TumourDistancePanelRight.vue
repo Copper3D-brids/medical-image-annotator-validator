@@ -22,8 +22,28 @@
 </template>
 
 <script setup lang="ts">
-import {withDefaults} from "vue"
-
+/**
+ * Tumour Distance Panel Right Component
+ *
+ * @description Displays tumour distance measurements in the right (3D) panel overlay:
+ * - Tumour volume (cm³) - optional
+ * - Tumour extent (mm) - optional
+ * - Distance to Skin (yellow)
+ * - Distance to Ribcage (cyan)
+ * - Distance to Nipple with clock position (pink)
+ *
+ * @prop {number} tumourVolume - Tumour volume in cm³
+ * @prop {number} tumourExtent - Tumour extent in mm
+ * @prop {string} skinDist - Distance to skin in mm
+ * @prop {string} ribDist - Distance to ribcage in mm
+ * @prop {string} nippleDist - Distance to nipple in mm
+ * @prop {string} nippleClock - Nipple clock position (e.g., "3 o'clock")
+ * @prop {boolean} showVolume - Whether to show volume display
+ * @prop {boolean} showExtent - Whether to show extent display
+ */
+/**
+ * Component props interface
+ */
 interface Props {
   tumourVolume?: number
   tumourExtent?: number
@@ -35,7 +55,6 @@ interface Props {
   showExtent?: boolean
 }
 
-// 只给 showVolume 和 showExtent 设置默认值
 const props = withDefaults(defineProps<Props>(), {
   showVolume: true,
   showExtent: true,

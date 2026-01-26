@@ -14,9 +14,15 @@
   </template>
   
   <script setup lang="ts">
-  import RightPanelCtl from "./tools/RightPanelCtl.vue";
+/**
+ * Right Panel Navigation Component
+ *
+ * @description Collapsible navigation group for right panel (3D view) controls.
+ * Contains RightPanelCtl for managing 3D model visibility and other settings.
+ */
+import RightPanelCtl from "./tools/RightPanelCtl.vue";
 
-  </script>
+</script>
   
   <style scoped></style>
   

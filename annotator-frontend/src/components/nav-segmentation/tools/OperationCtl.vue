@@ -1,8 +1,6 @@
 <template>
     <Operation>
-      <!-- <template #Calculator>
-        <Calculator />
-      </template> -->
+
 
       <template #FunctionalControl>
         <FunctionalControl
@@ -44,8 +42,29 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Operation Control Component
+ *
+ * @description Main control panel for segmentation operations. Provides:
+ * - Functional controls: Switch between Pencil, Brush, Eraser modes
+ * - Slider controls: Adjust opacity, brush size, window high/low, sensitivity
+ * - Button controls: Undo, Reset Zoom, Clear Mask actions
+ * - Advanced settings: Color picker, calculator integration
+ *
+ * Integrates with Copper3D GUI settings to control NrrdTools behavior.
+ *
+ * @listens Segementation:CaseSwitched - Resets controls when case changes
+ * @listens Segmentation:FinishLoadAllCaseImages - Enables controls after loading
+ * @listens Common:DragImageWindowCenter - Updates window center via drag
+ * @listens Common:DragImageWindowHigh - Updates window high via drag
+ * @listens Core:NrrdTools - Receives NrrdTools instance
+ *
+ * @emits Common:OpenCalculatorBox - Opens calculator panel
+ * @emits Common:CloseCalculatorBox - Closes calculator panel
+ * @emits SegmentationTrial:CalulatorTimerFunction - Timer control for calculator
+ */
 import OperationAdvance from "./advance/OperationAdvance.vue";
-// import Calculator from "./advance/Calculator.vue";
+
 import Operation from "@/components/nav-components/Operation.vue"
 import FunctionalControl from "@/components/nav-components/functionalCtl/FunctionalControl.vue";
 import SliderControl from "@/components/nav-components/sliderCtl/SliderControl.vue";
@@ -54,34 +73,49 @@ import { ref, onMounted, onUnmounted } from "vue";
 import { storeToRefs } from "pinia";
 import emitter from "@/plugins/custom-emitter";
 import * as Copper from "copper3d";
-import {
-  useTumourWindowStore
-} from "@/store/app";
+
 import { setTumourStudyPointPosition } from "@/components/utils";
 
+/** Type for tumour center position */
 type TTumourCenter = { center: { x: number; y: number; z: number; }};
+
+/** Type for GUI settings received from NrrdTools */
 type TGuiSettings = {
     guiState: Copper.IGUIStates;
     guiSetting: Copper.IGuiParameterSettings;
 };
 
-// load tumour window
-// const { tumourWindow } = storeToRefs(useTumourWindowStore());
-// const { getTumourWindowChrunk } = useTumourWindowStore();
-
-// Functional Controls
+/** Current functional mode radio selection */
 const commFuncRadios = ref("segmentation");
+
+/** Whether functional radios are disabled */
 const commFuncRadiosDisabled = ref(true);
+
+/** Previously selected functional button (for mode switching logic) */
 const prebtn = ref("segmentation")
 
-// Slider Controls
+/** Current slider mode radio selection */
 const commSliderRadios = ref("");
+
+/** Whether slider radios are disabled */
 const commSliderRadiosDisabled = ref(true);
+
+/** Current slider value */
 const slider = ref(0);
+
+/** Slider track color based on selected mode */
 const sliderColor = ref("grey");
+
+/** Whether slider is disabled */
 const sliderDisabled = ref(true);
+
+/** Slider maximum value (varies by mode) */
 const sliderMax = ref(100);
+
+/** Slider minimum value */
 const sliderMin = ref(0);
+
+/** Slider step increment */
 const sliderStep = ref(1);
 
 // Functional Buttons

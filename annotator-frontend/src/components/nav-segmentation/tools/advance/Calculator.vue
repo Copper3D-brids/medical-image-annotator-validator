@@ -46,14 +46,37 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Calculator Component
+ *
+ * @description Distance calculation panel for measuring tumour distances to:
+ * - Skin surface
+ * - Nipple position
+ * - Ribcage
+ *
+ * Provides radio buttons to select measurement target and reports timing
+ * for clinical trial purposes.
+ *
+ * @listens Segementation:CaseSwitched - Resets calculator on case change
+ * @listens Segmentation:FinishLoadAllCaseImages - Enables controls after loading
+ * @listens Common:OpenCalculatorBox - Opens calculator panel
+ * @listens Common:CloseCalculatorBox - Closes calculator panel
+ * @listens SegmentationTrial:CalulatorTimerFunction - Controls timing reports
+ */
 import { ref, onMounted, onUnmounted } from "vue";
 import emitter from "@/plugins/custom-emitter";
 import * as Copper from "copper3d";
 
-// buttons
+/** Currently selected measurement target (tumour, skin, nipple, ribcage) */
 const calculatorPickerRadios = ref("tumour");
+
+/** Whether calculator radios are disabled */
 const calculatorPickerRadiosDisabled = ref(true);
 
+/**
+ * Radio button configuration for measurement targets.
+ * Note: Tumour option is commented out as it's the default starting point.
+ */
 const commFuncRadioValues = ref([
   // { label: "Tumour", value: "tumour", color: "#4CAF50" },
   { label: "Skin", value: "skin", color: "#FFEB3B" },
@@ -61,11 +84,22 @@ const commFuncRadioValues = ref([
   { label: "Ribcage", value: "ribcage", color: "#2196F3" },
 ]);
 
+/** GUI settings reference from NrrdTools */
 const guiSettings = ref<any>();
+
+/** Timer start time for clinical trial tracking */
 const startTime = ref<number[]>([0,0,0]);
+
+/** Time when skin measurement was taken */
 const skinTime = ref<string>();
+
+/** Time when nipple measurement was taken */
 const nippleTime = ref<string>();
+
+/** Time when ribcage measurement was taken */
 const ribTime = ref<string>();
+
+/** Time when measurement was finished */
 const finishTime = ref<string>();
   
 

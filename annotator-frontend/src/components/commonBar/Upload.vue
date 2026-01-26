@@ -24,9 +24,29 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Upload Component
+ *
+ * @description Modal file upload dialog for NRRD files.
+ * Uses Element Plus el-upload with drag-and-drop support.
+ *
+ * Features:
+ * - Multiple file selection
+ * - Drag and drop upload area
+ * - Validates .nrrd file extension
+ * - Creates object URLs for uploaded files
+ *
+ * @prop {boolean} dialog - Whether upload dialog is visible
+ *
+ * @emits onCloseDialog - Emitted when dialog is closed
+ * @emits getLoadFilesUrls - Emitted with array of blob URLs for uploaded files
+ */
 import { UploadFilled } from "@element-plus/icons-vue";
 import type { UploadFile } from "element-plus";
 
+/**
+ * Component props interface
+ */
 type Props = {
   dialog?: boolean;
 };
@@ -35,8 +55,13 @@ withDefaults(defineProps<Props>(), {
   dialog: false,
 });
 
+/** Array of selected File objects */
 let files: Array<File> = [];
+
+/** Array of generated blob URLs */
 let urls: Array<string> = [];
+
+/** Flag to track if files have been submitted */
 let loadedFiles = false;
 
 const emit = defineEmits(["onCloseDialog", "getLoadFilesUrls"]);

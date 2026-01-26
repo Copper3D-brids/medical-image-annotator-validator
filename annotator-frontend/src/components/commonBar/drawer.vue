@@ -21,6 +21,17 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * View Drawer Component
+ *
+ * @description Animated slide-out drawer for view switching.
+ * Expands on hover to show view names. Provides buttons for:
+ * - Sagittal, Axial, Coronal views
+ * - Reset views
+ *
+ * @emits onViewSingleClick - Emitted on single click of view button
+ * @emits onViewDoubleClick - Emitted on double click of view button
+ */
 import { ref, onMounted } from "vue";
 import sagittalImg from "@/assets/images/person_left_view_white.png";
 import axialImg from "@/assets/images/person_top_down_white.png";
@@ -28,6 +39,10 @@ import coronalImg from "@/assets/images/person_anterior_white.png";
 import clockImg from "@/assets/images/clock_white.png";
 import resetImg from "@/assets/images/reset.png";
 
+/**
+ * View button configuration array.
+ * Each item includes name, label for events, and image icon.
+ */
 const viewData = [
   {
     name: "Sagittal view",
@@ -44,11 +59,6 @@ const viewData = [
     label: "coronal",
     img: coronalImg,
   },
-  // {
-  // name:"Clock function",
-  // label:"clock",
-  // img:clockImg
-  // },
   {
     name: "Reset views",
     label: "reset",
@@ -56,13 +66,21 @@ const viewData = [
   },
 ];
 
+/** Reference to container element */
 const container = ref<HTMLElement>();
+
 const emit = defineEmits(["onViewSingleClick", "onViewDoubleClick"]);
 
+/**
+ * Handles single click on view button.
+ */
 const onSigleClick = (view: string) => {
   emit("onViewSingleClick", view);
 };
 
+/**
+ * Handles double click on view button.
+ */
 const onDoubleClick = (view: string) => {
   emit("onViewDoubleClick", view);
 };

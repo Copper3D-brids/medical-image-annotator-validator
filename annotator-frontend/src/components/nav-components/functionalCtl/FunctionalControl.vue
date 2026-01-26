@@ -28,8 +28,21 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Functional Control Component
+ *
+ * @description Renders a radio button group for functional control selection.
+ * Used for toggling between different operational modes in the application.
+ *
+ * @prop {boolean} disabled - Whether the radio group is disabled
+ * @prop {RadioValue[]} radioValues - Array of radio button configurations
+ *
+ * @emits update:selectedRadio - Emitted when a radio button is selected
+ * @emits update:commFuncRadios - Alternative event for radio selection
+ */
 import { ref, computed  } from "vue";
 
+/** Type definition for radio button configuration */
 type RadioValue = {
   label: string;
   value: string;
@@ -43,8 +56,15 @@ defineProps<{
 
 const emit = defineEmits(["update:selectedRadio", "update:commFuncRadios"]);
 
+/** Two-way bound model for current radio selection */
 const commFuncRadio = defineModel()
 
+/**
+ * Handles radio button selection changes.
+ * Emits the selected value and updates the model.
+ *
+ * @param value - The value of the selected radio button
+ */
 function toggleFuncRadios(value:any){
     emit("update:selectedRadio", value);
     commFuncRadio.value = value;

@@ -40,6 +40,26 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Slider Control Component
+ *
+ * @description Renders a radio button group for slider mode selection along with
+ * a configurable slider control. Used for adjusting numeric values like brush size.
+ *
+ * @prop {RadioValue[]} sliderRadioValues - Radio button configurations for slider modes
+ * @prop {boolean} disabled - Whether radio group is disabled
+ * @prop {string} sliderColor - Vuetify color for the slider
+ * @prop {boolean} sliderDisabled - Whether slider is disabled
+ * @prop {number} sliderMax - Maximum slider value
+ * @prop {number} sliderMin - Minimum slider value
+ * @prop {number} sliderStep - Slider step increment
+ *
+ * @emits update:selectedSliderRadio - Emitted when slider mode radio changes
+ * @emits update:slider - Emitted during slider drag (real-time updates)
+ * @emits update:sliderFinished - Emitted when slider drag ends (final value)
+ */
+
+/** Type definition for slider radio button configuration */
 type RadioValue = {
   label: string;
   value: string;
@@ -55,21 +75,39 @@ defineProps<{
   sliderStep: number,
 }>();
 
+/** Two-way bound model for selected slider mode */
 const sliderRadio = defineModel("sliderRadio");
+
+/** Two-way bound model for slider value */
 const slider = defineModel<any>("slider");
 
 const emit = defineEmits(["update:selectedSliderRadio", "update:slider", "update:sliderFinished"]);
 
+/**
+ * Handles slider mode radio button selection.
+ *
+ * @param value - The selected slider mode value
+ */
 function toggleSliderRadios(value:any){
     emit("update:selectedSliderRadio", value);
     sliderRadio.value = value;
 }
 
+/**
+ * Handles slider value changes during drag operation.
+ *
+ * @param value - Current slider value
+ */
 function toggleSlider(value:any){
     emit("update:slider", value);
     slider.value = value;
 }
 
+/**
+ * Handles slider drag end event.
+ *
+ * @param value - Final slider value when drag ends
+ */
 function toggleSliderFinished(value:any){
     emit("update:sliderFinished", value);
 }

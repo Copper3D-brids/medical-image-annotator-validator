@@ -45,6 +45,21 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * NRRD Image Control Component
+ *
+ * @description Provides case and contrast image selection controls:
+ * - Case selector dropdown: Select which patient case to view
+ * - Contrast selector: Multi-select for which contrast phases to display
+ * - Register toggle: Switch between registered and origin images
+ *
+ * @listens Segmentation:FinishLoadAllCaseImages - Re-enables controls after loading
+ * @listens Segmentation:ContrastImageStates - Updates contrast selection options
+ *
+ * @emits Segementation:CaseSwitched - Emitted when user selects a different case
+ * @emits Segmentation:ContrastChanged - Emitted when contrast selection changes
+ * @emits Segmentation:RegisterImageChanged - Emitted when register toggle changes
+ */
 import Switcher from "@/components/commonBar/Switcher.vue";
 import { ref, onMounted, onUnmounted, onBeforeMount } from "vue";
 import { useSegmentationCasesStore } from "@/store/app";
@@ -53,20 +68,38 @@ import emitter from "@/plugins/custom-emitter";
 import { useAppConfig } from "@/plugins/hooks/config";
 import { useCases } from "@/plugins/hooks/cases";
 
+/** Type for tracking selected state of each contrast phase */
 type selecedType = {
   [key: string]: boolean;
 };
+
+/** Type for result object emitted on contrast change */
 type resultType = {
   [key: string]: any;
 };
 
 const { config } = useAppConfig();
 const { getCasesInfo } = useCases();
+
+/** All cases details from Pinia store */
 const { allCasesDetails } = storeToRefs(useSegmentationCasesStore());
+
+/** Whether case selector is disabled (during loading) */
 const disableSelectCase = ref(false);
+
+/** Whether contrast selector is disabled */
 const disableSelectContrast = ref(true);
+
+/** Available contrast phase options */
 const contrastValue = ref<string[]>([]);
+
+/** Currently selected contrast phases */
 const slectedContrast = ref<string[]>([]);
+
+/**
+ * Maps contrast names to their display order.
+ * Used for sorting selected contrasts in consistent order.
+ */
 const contrastOrder: any = {
   pre: 0,
   contrast1: 1,
@@ -74,12 +107,23 @@ const contrastOrder: any = {
   contrast3: 3,
   contrast4: 4,
 };
+
+/** Whether showing registered images (true) or origin images (false) */
 const switchRegisted = ref<boolean>(true);
+
+/** Title for register/origin switcher */
 const switchTitle = ref<string>("Register Images");
+
+/** Loading state for register switch */
 const switchLoading = ref<boolean | string>(false);
+
+/** Whether register switch is disabled */
 const switchDisabled = ref<boolean>(true);
+
+/** Label for register switch */
 const switchLable = ref<"on" | "off">("on");
 
+/** Tracks selected state for each contrast phase */
 let contrastState: selecedType;
 
 onBeforeMount(() => {

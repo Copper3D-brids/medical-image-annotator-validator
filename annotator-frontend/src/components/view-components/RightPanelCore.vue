@@ -12,12 +12,40 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Right Panel Core Component
+ *
+ * @description Core 3D model viewer using Copper3D and Three.js.
+ * Handles loading and displaying 3D NRRD slices, breast models, and tumour models.
+ *
+ * Features:
+ * - NRRD 3D slice visualization
+ * - View switching (Sagittal, Axial, Coronal, 3D)
+ * - Slice navigation via PanelOperationManager
+ * - Model loading for breast and tumour meshes
+ * - Coordinate transformation (pixel ↔ mm)
+ *
+ * @prop {boolean} showBottomNavBar - Whether to show bottom navigation bar
+ * @prop {boolean} showGuiPanel - Whether to show debug GUI panel
+ * @prop {boolean} showLoadingAnimation - Whether to show loading overlay
+ *
+ * @emits update:finishedCopperInit - On Copper3D initialization complete
+ * @emits update:resetNrrdImageView - On view reset
+ *
+ * @exposes loadNrrd - Function to load NRRD files
+ * @exposes removeOldMeshes - Function to clean up old meshes
+ * @exposes onNavBarSingleClick - Handler for nav bar single click
+ * @exposes onNavBarDoubleClick - Handler for nav bar double click
+ * @exposes backTo3DView - Function to return to 3D view
+ * @exposes resetNrrdImageView - Function to reset the view
+ */
 import * as THREE from "three";
 import * as Copper from "copper3d";
 import "copper3d/dist/css/style.css";
 import { ref, onMounted } from 'vue'
 import loadingGif from "@/assets/loading.svg";
 import { PanelOperationManager, valideClock, deepClone, processPointsCloud } from "@/plugins/view-utils/utils-right";
+
 defineProps({
     showBottomNavBar:{
         type: Boolean,
@@ -38,34 +66,51 @@ const emit = defineEmits([
   "update:resetNrrdImageView",
 ])
 
+/** Reference to base container element */
 let baseContainer = ref<HTMLDivElement>();
+/** Reference to GUI container element */
 let guiContainer = ref<HTMLDivElement>();
+/** Reference to panel loading container */
 let panelLoadingContainer = ref<HTMLDivElement>();
+/** Reference to loading container */
 let loadingContainer = ref<HTMLDivElement>();
+/** Reference to progress text element */
 let progress = ref<HTMLDivElement>();
+/** Loading bar for main panel */
 let copperLoadingAnimationContainer: Copper.loadingBarType = Copper.loading(loadingGif);
+/** Loading bar for NRRD loader */
 let copperLoadingAnimationForNrrdLoader: Copper.loadingBarType = Copper.loading(loadingGif);
 
+/** Main Copper3D renderer instance */
 let appRenderer: Copper.copperRenderer;
+/** Copper3D scene instance */
 let copperScene: Copper.copperScene;
+/** Panel operation manager for slice navigation */
 let panelOperator: PanelOperationManager;
 
-// for nrrd loader
+// NRRD coordinate system variables
+/** NRRD image origin in mm */
 let nrrdOrigin: number[] = [];
+/** NRRD voxel spacing */
 let nrrdSpacing: number[] = [];
+/** NRRD bias for centering models */
 let nrrdBias: THREE.Vector3;
+/** Corrected origin after bias adjustment */
 let correctedOrigin: number[] = [];
 /**
- * pixel / spacing = mm
- * mm * spacing = pixel
+ * NRRD RAS dimensions in mm.
+ * Conversion: pixel / spacing = mm; mm * spacing = pixel
  */
-let nrrdRASDimensions: number[] = []; // mm
-let nrrdDimensions: number[] = []; // pixels
+let nrrdRASDimensions: number[] = [];
+/** NRRD dimensions in pixels */
+let nrrdDimensions: number[] = [];
 
-
-// for deal with single/double click on a div
+// Single/double click state management
+/** Click counter for detecting double clicks */
 let clickCount = 0;
+/** Timer for click detection delay */
 let clickTimer: any = null;
+/** Flag for clock validation */
 let validFlag = false;
 
 onMounted(() => {

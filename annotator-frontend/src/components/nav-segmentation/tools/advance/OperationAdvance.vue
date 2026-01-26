@@ -49,28 +49,54 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Operation Advance Component
+ *
+ * @description Advanced settings panel for customizing drawing colors:
+ * - Pencil stroke color
+ * - Pencil fill color
+ * - Brush color
+ *
+ * Uses Vuetify color picker integrated with Copper3D GUI state.
+ *
+ * @listens Segmentation:FinishLoadAllCaseImages - Enables color picker after loading
+ */
 import { ref, onMounted, onUnmounted } from "vue";
 import emitter from "@/plugins/custom-emitter";
 import * as Copper from "copper3d";
 
-// buttons
+/** Currently selected color mode (color, fillColor, brushColor) */
 const commColorPickerRadios = ref("");
+
+/** Whether color picker radios are disabled */
 const commColorPickerRadiosDisabled = ref(true);
 
-// pickers
+/** Current color picker value in hex format */
 const commColorPicker = ref("#009688");
+
+/** Whether color picker is disabled */
 const commColorPickerDisabled = ref(true);
 
+/** Pencil stroke color */
 const pencilColor = ref("#f50a33");
+
+/** Pencil fill color */
 const pencilFillColor = ref("#00ff00");
+
+/** Brush color */
 const brushColor = ref("#00ff00");
 
+/**
+ * Radio button configuration for color type selection.
+ * Colors are bound reactively to current values.
+ */
 const commFuncRadioValues = ref([
   { label: "Pencil Color", value: "color", color: pencilColor },
   { label: "PencilFill Color", value: "fillColor", color: pencilFillColor },
   { label: "Brush Color", value: "brushColor", color: brushColor },
 ]);
 
+/** GUI settings reference from NrrdTools */
 const guiSettings = ref<any>();
 
 onMounted(() => {

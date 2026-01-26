@@ -1,3 +1,10 @@
+<!-- logo.vue -->
+<!--
+  Logo Component
+
+  @description Simple logo display component showing the ABI logo.
+  Positioned in the bottom-right corner of the application.
+-->
 <template>
   <div class="logo">
     <img src="abi.png" alt="" />

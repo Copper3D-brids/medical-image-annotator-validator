@@ -7,6 +7,18 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Tumour Distance Panel Left Component
+ *
+ * @description Displays tumour distance measurements in the left panel overlay:
+ * - DTS: Distance to Skin (yellow)
+ * - DTN: Distance to Nipple (pink)
+ * - DTR: Distance to Ribcage (cyan)
+ *
+ * @prop {number} dts - Distance to skin in mm
+ * @prop {number} dtn - Distance to nipple in mm
+ * @prop {number} dtr - Distance to ribcage in mm
+ */
 defineProps({
   dts: Number,
   dtn: Number,

@@ -42,10 +42,33 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Left Panel Navigation Bar Component
+ *
+ * @description Bottom navigation bar for the left (2D) panel providing:
+ * - Slice number slider with numeric input
+ * - Orientation switching buttons (Sagittal, Axial, Coronal)
+ * - Sync button for saving annotations
+ *
+ * Handles keyboard navigation (Arrow Up/Down) for slice navigation.
+ *
+ * @prop {number} fileNum - Number of files in current case
+ * @prop {number} max - Maximum slice number
+ * @prop {number} initSliceIndex - Initial slice index on load
+ * @prop {number} immediateSliceNum - Current slice number (reactive)
+ *
+ * @emits onSliceChange - Emitted when slice number changes (delta value)
+ * @emits onChangeOrientation - Emitted when view orientation changes
+ * @emits onSave - Emitted when sync button is clicked
+ *
+ * @listens Common:ToggleAppTheme - Updates dark/light mode styling
+ */
 import { ref, reactive, toRefs, watchEffect, onMounted, onUnmounted} from "vue";
 import emitter from "@/plugins/custom-emitter";
-// import {throttle2} from "@/views/components/tools";
 
+/**
+ * Component props interface
+ */
 type Props = {
   fileNum: number;
   min?: number;
@@ -56,6 +79,8 @@ type Props = {
   contrastIndex?: number;
   isAxisClicked?: boolean;
 };
+
+/** Reference to nav container for theme toggling */
 const nav_container = ref<HTMLDivElement>();
 
 onMounted(() => {
@@ -156,6 +181,9 @@ const updateSlider = () => {
 };
 
 watchEffect(() => {
+  console.log("immediateSliceNum", immediateSliceNum.value);
+  console.log("fileNum", fileNum.value);
+  console.log("contrastIndex", contrastIndex.value);
   currentSliderNum =
     immediateSliceNum.value * fileNum.value + contrastIndex.value;
   updateSlider();

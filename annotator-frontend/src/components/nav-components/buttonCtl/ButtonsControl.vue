@@ -30,6 +30,20 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Buttons Control Component
+ *
+ * @description Renders a list of action buttons based on configuration array.
+ * Each button is styled with Vuetify components and emits click events.
+ *
+ * @prop {Array} commFuncBtnValues - Array of button configurations with:
+ *   - label: Display text for button
+ *   - value: Unique identifier emitted on click
+ *   - color: Vuetify color for button
+ *   - disabled: Whether button is disabled
+ *
+ * @emits update:btnClicked - Emitted when a button is clicked, payload is button value
+ */
 
 defineProps<{
     commFuncBtnValues: {label: string, value: string, color: string, disabled: boolean}[]
@@ -37,6 +51,11 @@ defineProps<{
 
 const emit = defineEmits(["update:btnClicked"]);
 
+/**
+ * Handles button click events and emits the button value to parent.
+ *
+ * @param value - The unique value identifier of the clicked button
+ */
 function onBtnClick(value:string){
     emit("update:btnClicked", value);
 }

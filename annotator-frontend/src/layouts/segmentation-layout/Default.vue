@@ -21,6 +21,17 @@
 </template>
 
 <script lang="ts" setup>
+/**
+ * Default Layout Component
+ *
+ * @description Root layout component for the Medical Image Annotator application.
+ * Provides the main application shell including:
+ * - Navigation drawer with NavPanel
+ * - App bar with title, version, and theme toggle
+ * - Main content area via DefaultView
+ *
+ * @emits Common:ToggleAppTheme - Emitted when user toggles between light/dark theme
+ */
 import DefaultBar from "../components/AppBar.vue";
 import DefaultView from "./View.vue";
 import NavPanel from "@/components/nav-segmentation/NavPanel.vue";
@@ -28,17 +39,26 @@ import { useTheme } from "vuetify";
 import { ref } from "vue";
 import emitter from "@/plugins/custom-emitter";;
 
+/** Vuetify theme instance for controlling light/dark mode */
 const theme = useTheme();
-const drawerTheme = ref("dark");
 
+
+
+/**
+ * Toggles the application theme between light and dark mode.
+ * Updates the Vuetify global theme and emits an event for other components to react.
+ *
+ * @param value - Click event value (unused but required by v-btn)
+ */
 function toggleTheme(value: any) {
-  // theme.global.current.value.dark
+  // Toggle between light and dark theme based on current state
   theme.global.name.value = theme.global.current.value.dark
     ? "lightTheme"
     : "darkTheme";
 
-  drawerTheme.value = theme.global.current.value.dark ? "dark" : "light";
 
+
+  // Notify other components about theme change
   emitter.emit("Common:ToggleAppTheme", theme.global.name.value);
 }
 </script>

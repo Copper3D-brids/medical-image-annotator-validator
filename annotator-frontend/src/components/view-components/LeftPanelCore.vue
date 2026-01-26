@@ -24,8 +24,39 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Left Panel Core Component
+ *
+ * @description Core 2D medical image viewer using Copper3D NrrdTools.
+ * Handles loading and displaying NRRD image slices with segmentation tools.
+ *
+ * Features:
+ * - NRRD image loading from URLs
+ * - Slice navigation and orientation switching
+ * - Drawing tools (pencil, brush, eraser) for segmentation
+ * - Mask data extraction for saving annotations
+ * - Sphere positioning for tumour distance calculation
+ *
+ * @prop {boolean} showSliceIndex - Whether to show slice index panel
+ * @prop {boolean} showDebugPanel - Whether to show debug GUI panel
+ * @prop {boolean} showTumourDistancePanel - Whether to show distance overlay
+ * @prop {boolean} showBottomNavBar - Whether to show bottom navigation bar
+ * @prop {boolean} enableUpload - Whether to enable file upload slot
+ * @prop {string[]} currentCaseContrastUrls - URLs of NRRD files to load
+ * @prop {string} currentCaseName - Name of current case
+ * @prop {Object} emitter - Event emitter instance for cross-component communication
+ *
+ * @emits update:finishedCopperInit - On Copper3D initialization complete
+ * @emits update:getMaskData - On mask data extraction
+ * @emits update:sphereData - On sphere position/radius change
+ * @emits update:calculateSpherePositionsData - On sphere positions for distance calculation
+ * @emits update:sliceNumber - On slice navigation change
+ * @emits update:afterLoadAllCaseImages - On all images loaded
+ * @emits update:setMaskData - On mask data set
+ * @emits update:mouseDragContrast - On contrast adjustment via drag
+ */
 // import * as Copper from "copper3d";
-import * as Copper from "@/ts/index";
+import * as Copper from "copper3d";
 import "copper3d/dist/css/style.css";
 import { GUI, GUIController } from "dat.gui";
 import { ref, onMounted, onUnmounted, onBeforeUnmount, watch, watchEffect } from "vue";
@@ -38,24 +69,38 @@ import {
 import { switchAnimationStatus, addNameToLoadedMeshes } from "./leftCoreUtils";
 import { ILoadedMeshes, } from "@/models/apiTypes";
 
+/** Reference to base container element */
 let baseContainer = ref<HTMLDivElement>();
+/** Reference to debug GUI container */
 let debugContainer = ref<HTMLDivElement>();
+/** Reference to canvas container for 2D rendering */
 let canvasContainer = ref<HTMLDivElement>();
+/** Reference to bottom navigation bar container */
 let bottomNavBarContainer = ref<HTMLDivElement>();
+/** Reference to slice index display container */
 let sliceIndexContainer = ref<HTMLDivElement>();
 
+/** dat.gui instance for debug panel */
 let gui = new GUI({ width: 300, autoPlace: false });
 
 // Copper3D render scene core variables
+/** Main Copper3D renderer instance */
 let appRenderer: Copper.copperRenderer;
+/** NrrdTools instance for 2D slice interaction */
 let nrrdTools: Copper.NrrdTools;
+/** Copper3D scene instance */
 let scene: Copper.copperScene;
+/** Loading bar animation container */
 let loadBarMain = ref<Copper.loadingBarType>();
+/** Loading container element */
 let loadingContainer = ref<HTMLDivElement>();
+/** Progress text element */
 let progress = ref<HTMLDivElement>();   
 
 // offline working variables
+/** Pre-loaded eraser cursor URLs for offline use */
 const eraserUrls = getEraserUrlsForOffLine();
+/** Pre-loaded pencil cursor URLs for offline use */
 const cursorUrls = getCursorUrlsForOffLine();
 
 // trial variables

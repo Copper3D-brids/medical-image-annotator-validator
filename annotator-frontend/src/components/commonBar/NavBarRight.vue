@@ -51,6 +51,25 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Right Panel Navigation Bar Component
+ *
+ * @description Bottom navigation bar for the right (3D) panel providing:
+ * - View switching buttons: Sagittal, Axial, Coronal views
+ * - 3D view button and reset button
+ * - Slice navigation slider (shows when a view is selected)
+ *
+ * Integrates with PanelOperationManager for coordinated slice navigation.
+ *
+ * @prop {number} panelWidth - Current panel width for responsive layout
+ * @prop {Object} settings - Panel operation settings including slice info
+ *
+ * @emits onViewSingleClick - Emitted on single click of view button
+ * @emits onViewDoubleClick - Emitted on double click of view button
+ *
+ * @listens Common:ToggleAppTheme - Updates dark/light mode styling
+ * @listens Segmentation:CaseDetails - Disables buttons during case loading
+ */
 import { ref, onMounted, toRefs, reactive, onUnmounted, watch} from "vue";
 import sagittalImg_white from "@/assets/images/person_left_view_white.png";
 import axialImg_white from "@/assets/images/person_top_down_white.png";
@@ -63,6 +82,9 @@ import resetImg from "@/assets/images/reset.png";
 import emitter from "@/plugins/custom-emitter";
 import {PanelOperationManager} from "@/plugins/view-utils/utils-right"
 
+/**
+ * Component props interface
+ */
 type Props = {
   panelWidth: number;
   settings?:{
@@ -72,6 +94,10 @@ type Props = {
       currentValue: number[];
   };
 };
+
+/**
+ * Slider view configuration type
+ */
 interface ISliderView{
     color:string,
     max:number,
@@ -84,6 +110,8 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const { panelWidth } = toRefs(reactive(props));
+
+/** Whether to show the slice navigation slider */
 const showDragSlider = ref(false)
 
 const viewData = {
@@ -199,10 +227,6 @@ const manageEmitters = () => {
 const emitterOnToggleAppTheme = () => {
   darkMode.value = !darkMode.value;
   nav_container.value?.classList.toggle("dark");
-}
-
-const emitterOnRightPanelSliderSettingValueUpdated = (settings:any)=>{
-  
 }
 
 const emitterOnCaseDetails = ()=>{

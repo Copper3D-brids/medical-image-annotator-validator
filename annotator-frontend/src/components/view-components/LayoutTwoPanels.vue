@@ -27,19 +27,52 @@
 </template> 
 
 <script lang="ts" setup>
+/**
+ * Two Panels Layout Component
+ *
+ * @description Split-view layout container with resizable left and right panels.
+ * Features:
+ * - Draggable split bar for resizing panels
+ * - Double-click to toggle panel full-screen mode
+ * - Sticky mode support for navigation panels
+ *
+ * @slot left - Left panel content (typically 2D image viewer)
+ * @slot right - Right panel content (typically 3D model viewer)
+ *
+ * @exposes leftPanelWidth - Current left panel width in pixels
+ * @exposes rightPanelWidth - Current right panel width in pixels
+ *
+ * @listens Common:NavStickyMode - Updates panel sizing for sticky navigation
+ */
 import { ref, onMounted, onUnmounted } from "vue";
 import emitter from "@/plugins/custom-emitter";;
 import { throttle } from "@/plugins/view-utils/tools";
 
+/** Reference to main container element */
 const mainContainer = ref<HTMLDivElement>();
+
+/** Reference to split bar divider element */
 const splitBar = ref<HTMLDivElement>();
 
+/** Reference to left panel container */
 const left_container = ref<HTMLDivElement>();
+
+/** Reference to right panel container */
 const right_container = ref<HTMLDivElement>();
+
+/** Whether left panel is in full-screen mode */
 let leftFullScreen = ref(false);
+
+/** Whether right panel is in full-screen mode */
 let rightFullScreen = ref(false);
+
+/** Elements to ignore for double-click detection */
 const ignoreElements = ["INPUT", "I", "svg", "path"];
+
+/** Current left panel width (exposed for external use) */
 const leftPanelWidth = ref(1000);
+
+/** Current right panel width (exposed for external use) */
 const rightPanelWidth = ref(600);
 
 defineExpose({
@@ -47,7 +80,10 @@ leftPanelWidth,
 rightPanelWidth,
 })
 
+/** Whether split bar is currently being dragged */
 let isDragging = false;
+
+/** Whether navigation is in sticky mode */
 let nav_sticky = false;
 onMounted(() => {
 manageEmitters();
