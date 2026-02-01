@@ -27,7 +27,6 @@ pnpm-debug.log*
 *.sw?
 
 test
-ts
 
 .env
 
