@@ -2,6 +2,7 @@
  * Tool Module Exports
  *
  * Phase 3 - Tool Abstraction
+ * Phase 5 - Crosshair & Sphere Tools
  */
 
 // Base Tool
@@ -19,6 +20,10 @@ export type { PanAdapter } from './PanTool';
 
 export { ZoomTool } from './ZoomTool';
 export type { ZoomAdapter } from './ZoomTool';
+
+// Crosshair Tool
+export { CrosshairTool } from './CrosshairTool';
+export type { CrosshairAdapter } from './CrosshairTool';
 
 // Sphere / Calculator Tools
 export { SphereTool, SPHERE_COLORS } from './SphereTool';

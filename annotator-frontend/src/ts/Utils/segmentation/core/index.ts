@@ -5,6 +5,7 @@
  * Phase 2 - Core Data Layer
  * Phase 3 - Tool Abstraction
  * Phase 4 - Rendering Pipeline
+ * Phase 5 - Crosshair & Sphere Tools
  */
 
 // ===== Phase 0: Data Persistence =====
@@ -65,6 +66,10 @@ export type {
     SphereAdapter,
     ContrastAdapter,
 } from '../tools';
+
+// ===== Phase 5: Crosshair & Sphere Tools =====
+export { CrosshairTool } from '../tools';
+export type { CrosshairAdapter } from '../tools';
 
 // ===== Phase 4: Rendering Pipeline =====
 export { MaskRenderer, buildLayerImageData } from '../rendering/MaskRenderer';
