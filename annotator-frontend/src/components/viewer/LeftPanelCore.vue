@@ -385,6 +385,7 @@ watch(filesCount, ()=>{
 
       coreRenderId = scene?.addPreRenderCallbackFunction(nrrdTools!.start) as number;
       emitter!.emit("Core:NrrdTools", nrrdTools);
+      emitter!.emit("Core:SegmentationManager", segmentationManager);  // Phase 7 - Step 8
     } else {
       nrrdTools!.redrawMianPreOnDisplayCanvas();
     }

@@ -1,5 +1,6 @@
 const eventNames = [
     "Core:NrrdTools",
+    "Core:SegmentationManager",
     'TumourStudy:Casename', 
     'TumourStudy:Status', 
     "TumourStudy:NextCase", 

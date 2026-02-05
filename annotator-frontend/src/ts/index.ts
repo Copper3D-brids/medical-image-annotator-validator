@@ -36,6 +36,21 @@ import {
   type PartialStateUpdate,
   type ImportMaskData,
   type ExportMaskData,
+  // Step 7: Tool classes
+  PencilTool,
+  BrushTool,
+  EraserTool,
+  PanTool,
+  ZoomTool,
+  ContrastTool,
+  SphereTool,
+  CrosshairTool,
+  type ToolContext,
+  type GuiTool,
+  // Step 10b: Layer/Channel types and colors
+  type LayerId,
+  type ChannelValue,
+  CHANNEL_COLORS,
 } from "./Utils/segmentation";
 
 import { Copper3dTrackballControls } from "./Controls/Copper3dTrackballControls";
@@ -92,6 +107,17 @@ export {
   // Phase 7: Segmentation Module
   SegmentationManager,
   StateManager,
+  // Step 7: Tool classes
+  PencilTool,
+  BrushTool,
+  EraserTool,
+  PanTool,
+  ZoomTool,
+  ContrastTool,
+  SphereTool,
+  CrosshairTool,
+  // Step 10b: Channel colors for UI
+  CHANNEL_COLORS,
 };
 
 export type {
@@ -121,4 +147,11 @@ export type {
   PartialStateUpdate,
   ImportMaskData,
   ExportMaskData,
+  // Step 7: Tool context type
+  ToolContext,
+  // Step 8: GuiTool type for tool selection
+  GuiTool,
+  // Step 10b: Layer/Channel types
+  LayerId,
+  ChannelValue,
 };

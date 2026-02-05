@@ -19,6 +19,8 @@
                 title="Operation Settings"
             ></v-list-item>
         </template>
+        <!-- Phase 7 - Step 10b: Layer/Channel Selection -->
+        <slot name="LayerChannel"></slot>
         <!-- Calculator Control -->
         <slot name="Calculator"></slot>
         <!-- Functional Control -->
@@ -28,6 +30,7 @@
             <slot name="ButtonControl"></slot>
         </v-container>
         <slot name="OperationAdvance"></slot>
+        
     </v-list-group>
 </template>
 

@@ -60,10 +60,11 @@
  * Uses Vuetify color picker integrated with Copper3D GUI state.
  *
  * @listens Segmentation:FinishLoadAllCaseImages - Enables color picker after loading
+ * @listens Core:SegmentationManager - Receives SegmentationManager instance (Phase 7 - Step 10)
  */
 import { ref, onMounted, onUnmounted } from "vue";
 import emitter from "@/plugins/custom-emitter";
-import * as Copper from "copper3d";
+import * as Copper from "@/ts/index";
 
 /** Currently selected color mode (color, fillColor, brushColor) */
 const commColorPickerRadios = ref("");
@@ -86,6 +87,9 @@ const pencilFillColor = ref("#00ff00");
 /** Brush color */
 const brushColor = ref("#00ff00");
 
+/** SegmentationManager instance (Phase 7 - Step 10) */
+let segmentationManager: Copper.SegmentationManager | undefined;
+
 /**
  * Radio button configuration for color type selection.
  * Colors are bound reactively to current values.
@@ -105,6 +109,7 @@ onMounted(() => {
 
 function manageEmitters() {
   emitter.on("Segmentation:FinishLoadAllCaseImages", emitterOnFinishLoadAllCaseImages);
+  emitter.on("Core:SegmentationManager", emitterOnSegmentationManager);  // Phase 7 - Step 10
 }
 
 const emitterOnFinishLoadAllCaseImages = (val:
@@ -121,6 +126,11 @@ const emitterOnFinishLoadAllCaseImages = (val:
 
   commColorPickerRadiosDisabled.value = false;
   commColorPickerDisabled.value = false;
+}
+
+const emitterOnSegmentationManager = (mgr: Copper.SegmentationManager) => {
+  segmentationManager = mgr;
+  console.log('[Phase 7 - Step 10] SegmentationManager received in OperationAdvance');
 }
 
 function toggleColorPickerRadios(val: string | null) {
@@ -144,6 +154,7 @@ function handleOnColorPicked(color: string) {
 
 onUnmounted(() => {
   emitter.off("Segmentation:FinishLoadAllCaseImages", emitterOnFinishLoadAllCaseImages);
+  emitter.off("Core:SegmentationManager", emitterOnSegmentationManager);  // Phase 7 - Step 10
 });
 </script>
 

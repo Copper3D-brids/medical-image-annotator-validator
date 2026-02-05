@@ -127,9 +127,9 @@
 - [x] 回调通知: onSpherePlaced / onCalculatorPositionsUpdated
 
 - [x] **🧪 Unit Tests: 67 tests passed (tools.test.ts)** ✅
-- [ ] **🧪 User Testing: Pencil 画闭合区域并验证自动填充**
-- [ ] **🧪 User Testing: Brush 涂抹并验证连续圆形叠加**
-- [ ] **🧪 User Testing: Sphere 放置并验证跨 slice 数据**
+- [ ] **🧪 User Testing: Pencil 画闭合区域并验证自动填充** ⏳ 待事件路由接管后测试
+- [ ] **🧪 User Testing: Brush 涂抹并验证连续圆形叠加** ⏳ 待事件路由接管后测试
+- [ ] **🧪 User Testing: Sphere 放置并验证跨 slice 数据** ⏳ 待事件路由接管后测试
 
 ---
 
@@ -137,7 +137,7 @@
 
 ### 4.1 Canvas Setup
 - [x] 精简为 3 个 Canvas: displayCanvas, drawingLayer, maskDisplayCanvas
-- [ ] 移除旧的 8 个 Canvas (Phase 7 Integration)
+- [ ] 移除旧的 8 个 Canvas ⚠️ **推迟** — 依赖 NrrdTools 移除 (Phase 7 Step 12 已跳过)
 
 ### 4.2 MaskRenderer
 - [x] `rendering/MaskRenderer.ts` - 从 Uint8Array 渲染到 Canvas
@@ -149,8 +149,8 @@
 - [x] 仅在数据变化时重绘
 
 - [x] **🧪 Unit Tests: 45 tests passed (rendering.test.ts)** ✅
-- [ ] **🧪 User Testing: 验证 3 层 Canvas 正确显示**
-- [ ] **🧪 User Testing: 验证缩放后画笔坐标正确**
+- [ ] **🧪 User Testing: 验证 3 层 Canvas 正确显示** ⏳ 待 Canvas 架构切换后测试
+- [ ] **🧪 User Testing: 验证缩放后画笔坐标正确** ⏳ 待事件路由接管后测试
 
 ---
 
@@ -169,7 +169,7 @@
 - [x] 滚轮调整半径 (Phase 3 已完成)
 
 - [x] **🧪 Unit Tests: 47 tests passed (crosshair.test.ts)** ✅
-- [ ] **🧪 User Testing: 在 Z 视图点击后切换到 Y 视图验证 Crosshair 同步**
+- [ ] **🧪 User Testing: 在 Z 视图点击后切换到 Y 视图验证 Crosshair 同步** ⏳ 待事件路由接管后测试
 
 ---
 
@@ -212,63 +212,91 @@
 - [x] `core/index.ts` - 导出 Phase 6 新增内容
 
 - [x] **🧪 Unit Tests: coordinator.test.ts (84 tests)** ✅
-- [ ] **🧪 User Testing: 验证工具互斥规则与现有 DrawToolCore 行为一致**
+- [ ] **🧪 User Testing: 验证工具互斥规则与现有 DrawToolCore 行为一致** ⏳ 待事件路由接管后测试
 
 ---
 
-## Phase 7: Integration ✅
+## Phase 7: Integration ✅ (Vue 组件集成层完成)
+
+> **架构说明**: Phase 7 采用 **one-way sync (同步影子)** 模式 —— NrrdTools 仍为核心引擎驱动渲染和交互，
+> SegmentationManager 作为同步层接收状态，为后续完全替换做准备。
+> 详细的 Step 1-12 执行记录见 `vue_migration_task.md`。
 
 ### 7.1 SegmentationManager
 - [x] `SegmentationManager.ts` - 统一管理入口
 - [x] 实现 `getMaskData()` / `setMasksData()` 兼容现有 API
 - [x] 整合所有 managers 和 tools
+- [x] 新增 `setCalculatorTarget()` / `getCalculatorTarget()` (Step 9)
+- [x] 新增 4 个 Manager getter: `getLayerManager()`, `getUndoManager()`, `getVisibilityManager()`, `getKeyboardManager()` (Step 7)
+- [x] 新增 `getRegisteredTools()` 方法 (Step 7)
 
 ### 7.2 StateManager (GUI 解耦)
 - [x] `core/StateManager.ts` - Vue 组件状态管理
 - [x] 替代现有 `guiSettings.guiState` / `guiSetting.onChange()` 模式
 - [x] 提供类型安全的状态更新 API
 
-### 7.3 Vue Component Updates
-- [x] 更新 `OperationCtl.vue` - 使用 StateManager (Migration guide provided)
-- [x] 更新 `Calculator.vue` - 使用 StateManager (Migration guide provided)
-- [x] 更新 `OperationAdvance.vue` - 使用 StateManager (Migration guide provided)
-- [x] 更新 `useMaskOperations.ts` - 使用新 API (Migration guide provided)
+### 7.3 Vue Component Integration (Step 1-10b)
+- [x] **Step 1**: 创建 SegmentationManager 实例 (LeftPanelCore + LeftPanelController)
+- [x] **Step 2**: 配置 RenderingAdapter (LeftPanelCore)
+- [x] **Step 3**: 配置 DimensionAdapter + 初始化 (LeftPanelController)
+- [x] **Step 4**: 迁移 useMaskOperations — 加载后同步 mask 到 SegmentationManager
+- [x] **Step 5**: 迁移 useDistanceCalculation — 优先使用 SegmentationManager 获取 voxelSpacing/spaceOrigin
+- [x] **Step 6**: 迁移 useSliceNavigation — 添加 segmentationManager 参数 (导航仍用 NrrdTools)
+- [x] **Step 7**: 注册 8 个工具到 SegmentationManager (PencilTool, BrushTool, EraserTool, PanTool, ZoomTool, ContrastTool, SphereTool, CrosshairTool)
+- [x] **Step 8**: 迁移 OperationCtl.vue — 同步工具选择 + 笔刷大小到 SegmentationManager
+- [x] **Step 9**: 迁移 Calculator.vue — 同步测距目标到 SegmentationManager
+- [x] **Step 10**: 迁移 OperationAdvance.vue — 接收 SegmentationManager (颜色 API 待扩展)
+- [x] **Step 10b**: 🆕 新增 Layer/Channel 选择 UI (LayerChannelSelector.vue + useLayerChannel.ts)
 
 ### 7.4 Event Bus Migration
-- [x] 保留 `Core:NrrdTools` 事件或迁移到 StateManager (Migration guide provided)
-- [x] 保留 `Segmentation:FinishLoadAllCaseImages` 事件 (No changes needed)
-- [x] 验证所有 emitter 事件正常工作 (Migration guide provided)
+- [x] 新增 `Core:SegmentationManager` emitter 事件 (Step 8)
+- [x] 保留 `Core:NrrdTools` 事件 (NrrdTools 未移除)
+- [x] 保留 `Segmentation:FinishLoadAllCaseImages` 事件
+- [x] 验证所有 emitter 事件正常注册和清理 (Step 11)
+
+### 7.5 测试与清理 (Step 11-12)
+- [x] **Step 11**: 全面测试 — TypeScript 0 新错误, 289 单元测试通过, 26 API 方法验证 ✅
+- [—] **Step 12**: 移除 NrrdTools — ⚠️ **跳过** (SegmentationManager 尚无法独立驱动渲染，推迟到后续 Phase)
+
+### 7.6 导出更新
+- [x] `@/ts/index.ts` — 导出 SegmentationManager, StateManager, 8 工具类, CHANNEL_COLORS
+- [x] 类型导出: RenderingAdapter, DimensionAdapter, ToolContext, GuiTool, LayerId, ChannelValue, ImportMaskData, ExportMaskData
+- [x] `composables/left-panel/index.ts` — 导出 useLayerChannel
 
 - [x] **📖 Migration Guide: Vue 组件迁移指南已生成**
-- [ ] **🧪 User Testing: 验证 Vue 组件与新 API 正常交互** (User task)
-- [ ] **🧪 User Testing: 验证 getMask/setMask 与后端兼容** (User task)
+- [x] **🧪 User Testing: 验证 Vue 组件与新 API 正常交互** ✅ (Step 11 手动验证)
+- [ ] **🧪 User Testing: 验证 getMask/setMask 与后端兼容** (待后端 NIfTI API 就绪)
 
 ---
 
-## Phase 8: Testing (Vitest)
+## Phase 8: Testing (Vitest) ✅ (289 tests passing)
 
 ### 8.1 Setup
-- [ ] 安装 `vitest @vitest/ui jsdom`
-- [ ] 配置 `vitest.config.ts`
+- [x] 安装 `vitest @vitest/ui jsdom` ✅
+- [x] 配置 `vitest.config.ts` ✅
 
-### 8.2 Unit Tests
-- [ ] `MaskLayer.test.ts` - Uint8Array 操作测试
-- [ ] `LayerManager.test.ts` - 图层管理测试
-- [ ] `UndoManager.test.ts` - undo/redo 测试
-- [ ] `VisibilityManager.test.ts` - 显示/隐藏测试
+### 8.2 Unit Tests (已完成，按模块分布)
+- [x] `core.test.ts` — 46 tests ✅ (MaskLayer, LayerManager, UndoManager, VisibilityManager, KeyboardManager)
+- [x] `tools.test.ts` — 67 tests ✅ (PencilTool, BrushTool, EraserTool, PanTool, ZoomTool, ContrastTool, SphereTool)
+- [x] `rendering.test.ts` — 45 tests ✅ (MaskRenderer)
+- [x] `crosshair.test.ts` — 47 tests ✅ (CrosshairTool)
+- [x] `coordinator.test.ts` — 84 tests ✅ (ToolCoordinator 互斥规则, 事件路由, 状态转换)
 
 ### 8.3 Integration Tests
-- [ ] `PencilTool.test.ts` - 多边形填充测试
-- [ ] `BrushTool.test.ts` - 笔刷测试
-- [ ] `CrosshairTool.test.ts` - 跨视图定位测试
+- [ ] Vue 组件与 SegmentationManager 集成测试 (待实现)
+- [ ] 端到端: 绘制 → 保存 → 加载 完整流程测试 (待实现)
 
-- [ ] **🧪 User Testing: 运行 `yarn test` 验证所有测试通过**
+- [x] **🧪 User Testing: 运行 `npx vitest run` 验证所有 289 测试通过** ✅
 
 ---
 
 ## Phase 9: Cleanup & Documentation
 
-- [ ] 删除旧代码: `CommToolsData.ts`, `DrawToolCore.ts` (拆分后)
+> **前置条件**: 需要先完成事件路由接管 (SegmentationManager 替代 NrrdTools 驱动交互) 后才能执行。
+> Phase 7 同步层已就绪，但 NrrdTools 仍为核心引擎，旧代码尚不能删除。
+
+- [ ] 删除旧代码: `CommToolsData.ts`, `DrawToolCore.ts` (拆分后) ⚠️ 待 NrrdTools 移除后
+- [ ] 删除 NrrdTools 相关代码 (对应 vue_migration_task.md Step 12) ⚠️ 待事件路由完全迁移后
 - [ ] 更新 README 或添加开发文档
 - [ ] 代码审查
 

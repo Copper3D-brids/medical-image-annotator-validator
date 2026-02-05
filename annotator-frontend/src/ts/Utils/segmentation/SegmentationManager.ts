@@ -115,6 +115,7 @@ export interface SegmentationState {
     globalAlpha: number;
     crosshairEnabled: boolean;
     allowedInteractions: Set<string>;
+    calculatorTarget: 'tumour' | 'skin' | 'nipple' | 'ribcage';
 }
 
 // ===== Main Class =====
@@ -149,6 +150,7 @@ export class SegmentationManager {
     // ===== Internal State =====
     private currentChannel: number = 1;
     private brushSize: number = 15;
+    private calculatorTarget: 'tumour' | 'skin' | 'nipple' | 'ribcage' = 'tumour';
     private initialized: boolean = false;
 
     constructor() {
@@ -345,6 +347,7 @@ export class SegmentationManager {
             globalAlpha: this.dimensionAdapter?.getGlobalAlpha() || 0.7,
             crosshairEnabled: this.coordinator.isCrosshairEnabled(),
             allowedInteractions: this.coordinator.getAllowed(),
+            calculatorTarget: this.calculatorTarget,
         });
     }
 
@@ -419,6 +422,24 @@ export class SegmentationManager {
      */
     getBrushSize(): number {
         return this.brushSize;
+    }
+
+    // ===== Public API: Calculator =====
+
+    /**
+     * Set calculator measurement target
+     * Phase 7 - Step 9: Syncs calculator target from UI
+     */
+    setCalculatorTarget(target: 'tumour' | 'skin' | 'nipple' | 'ribcage'): void {
+        this.calculatorTarget = target;
+        this.notifyStateChange();
+    }
+
+    /**
+     * Get calculator measurement target
+     */
+    getCalculatorTarget(): 'tumour' | 'skin' | 'nipple' | 'ribcage' {
+        return this.calculatorTarget;
     }
 
     // ===== Public API: Visibility Management =====
@@ -694,6 +715,43 @@ export class SegmentationManager {
      */
     isInitialized(): boolean {
         return this.initialized;
+    }
+
+    // ===== Public API: Manager Access (for ToolContext) =====
+
+    /**
+     * Get the LayerManager (for ToolContext creation)
+     */
+    getLayerManager(): LayerManager {
+        return this.layerManager;
+    }
+
+    /**
+     * Get the UndoManager (for ToolContext creation)
+     */
+    getUndoManager(): UndoManager {
+        return this.undoManager;
+    }
+
+    /**
+     * Get the VisibilityManager (for ToolContext creation)
+     */
+    getVisibilityManager(): VisibilityManager {
+        return this.visibilityManager;
+    }
+
+    /**
+     * Get the KeyboardManager (for ToolContext creation)
+     */
+    getKeyboardManager(): KeyboardManager {
+        return this.keyboardManager;
+    }
+
+    /**
+     * Get all registered tool names
+     */
+    getRegisteredTools(): string[] {
+        return this.coordinator.getRegisteredTools();
     }
 
     /**

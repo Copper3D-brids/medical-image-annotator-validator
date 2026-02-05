@@ -65,10 +65,12 @@
  */
 import { ref, onMounted, onUnmounted } from "vue";
 import emitter from "@/plugins/custom-emitter";
-import * as Copper from "copper3d";
+import * as Copper from "@/ts/index";
 
 /** Currently selected measurement target (tumour, skin, nipple, ribcage) */
 const calculatorPickerRadios = ref("tumour");
+
+let segmentationManager: Copper.SegmentationManager | undefined;  // Phase 7 - Step 9
 
 /** Whether calculator radios are disabled */
 const calculatorPickerRadiosDisabled = ref(true);
@@ -114,6 +116,7 @@ function manageEmitters() {
   emitter.on("Common:OpenCalculatorBox", emitterOnOpenCalculatorBox);
   emitter.on("Common:CloseCalculatorBox", emitterOnCloseCalculatorBox);
   emitter.on("SegmentationTrial:CalulatorTimerFunction", emitterOnCalulatorTimerFunction);
+  emitter.on("Core:SegmentationManager", emitterOnSegmentationManager);  // Phase 7 - Step 9
 }
 
 const emitterOnCaseSwitched = ()=>{
@@ -139,6 +142,10 @@ const emitterOnCloseCalculatorBox = ()=>{
 }
 const emitterOnCalulatorTimerFunction = (status: string)=>{
   calculatorTimerReport(status);
+}
+const emitterOnSegmentationManager = (mgr: Copper.SegmentationManager) => {
+  segmentationManager = mgr;
+  console.log('[Phase 7 - Step 9] SegmentationManager received in Calculator');
 }
 
 function calculatorTimerReport(status:string){
@@ -185,7 +192,11 @@ function toggleCalculatorPickerRadios(val: string | null) {
   }
 
   guiSettings.value.guiSetting["cal_distance"].onChange(calculatorPickerRadios.value);
-  
+
+  // Phase 7 - Step 9: Sync calculator target to SegmentationManager
+  if (segmentationManager?.isInitialized() && val) {
+    segmentationManager.setCalculatorTarget(val as 'tumour' | 'skin' | 'nipple' | 'ribcage');
+  }
 }
 
 function onBtnClick(val:string){
@@ -195,6 +206,11 @@ function onBtnClick(val:string){
     calculatorPickerRadiosDisabled.value = true;
 
     calculatorTimerReport("finish")
+
+    // Phase 7 - Step 9: Sync reset to SegmentationManager
+    if (segmentationManager?.isInitialized()) {
+      segmentationManager.setCalculatorTarget('tumour');
+    }
   }
 }
 
@@ -204,6 +220,7 @@ onUnmounted(() => {
   emitter.off("Common:OpenCalculatorBox", emitterOnOpenCalculatorBox);
   emitter.off("Common:CloseCalculatorBox", emitterOnCloseCalculatorBox);
   emitter.off("SegmentationTrial:CalulatorTimerFunction", emitterOnCalulatorTimerFunction);
+  emitter.off("Core:SegmentationManager", emitterOnSegmentationManager);  // Phase 7 - Step 9
 })
 
 </script>

@@ -9,3 +9,12 @@ export { useLeftPanelEmitters, type IEmitterHandlers } from "./useLeftPanelEmitt
 export { useSliceNavigation, type ISliceNavigationDeps } from "./useSliceNavigation";
 export { useCaseManagement, type ICaseManagementDeps } from "./useCaseManagement";
 export { useDebugGui, type IGuiDeps } from "./useDebugGui";
+export {
+    useLayerChannel,
+    type ILayerChannelDeps,
+    type LayerConfig,
+    type ChannelConfig,
+    LAYER_CONFIGS,
+    CHANNEL_CONFIGS
+} from "./useLayerChannel";
+

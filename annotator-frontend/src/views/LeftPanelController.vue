@@ -280,6 +280,36 @@ const handleAllImagesLoaded = async (res: IToolAfterLoadImagesResponse) => {
       height: states.nrrd_y_pixel,
       depth: states.nrrd_z_pixel,
     });
+
+    // Phase 7 - Step 7: Register tools to SegmentationManager
+    const segMgr = segmentationManager.value;
+    const toolContext: Copper.ToolContext = {
+      layerManager: segMgr.getLayerManager(),
+      undoManager: segMgr.getUndoManager(),
+      visibilityManager: segMgr.getVisibilityManager(),
+      keyboardManager: segMgr.getKeyboardManager(),
+      currentChannel: 1,
+      currentSlice: states.currentIndex,
+      currentAxis: nrrd.protectedData.axis,
+      brushSize: 15,
+      sizeFactor: states.sizeFoctor,
+      globalAlpha: nrrd.gui_states.globalAlpha,
+      drawingCtx: null,  // Will be set when canvas events are wired (Step 8+)
+      drawingCanvas: null,
+      requestRender: () => segmentationManager.value?.render?.(),
+    };
+
+    // Register all tools
+    segMgr.registerTool('pencil', new Copper.PencilTool(toolContext));
+    segMgr.registerTool('brush', new Copper.BrushTool(toolContext));
+    segMgr.registerTool('eraser', new Copper.EraserTool(toolContext));
+    segMgr.registerTool('pan', new Copper.PanTool(toolContext));
+    segMgr.registerTool('zoom', new Copper.ZoomTool(toolContext));
+    segMgr.registerTool('contrast', new Copper.ContrastTool(toolContext));
+    segMgr.registerTool('sphere', new Copper.SphereTool(toolContext));
+    segMgr.registerTool('crosshair', new Copper.CrosshairTool(toolContext));
+
+    console.log('[Phase 7 - Step 7] Tools registered:', segMgr.getRegisteredTools());
   }
 
   // Build contrast state
