@@ -17,7 +17,16 @@ export interface DragSliceCallbacks {
   setIsDrawFalse: (target: number) => void;
   flipDisplayImageByAxis: () => void;
   setEmptyCanvasSize: (axis?: "x" | "y" | "z") => void;
-  getCachedSliceImageData: (layer: string, axis: "x" | "y" | "z", sliceIndex: number) => ImageData | null;
+  getOrCreateSliceBuffer: (axis: "x" | "y" | "z") => ImageData | null;
+  renderSliceToCanvas: (
+    layer: string,
+    axis: "x" | "y" | "z",
+    sliceIndex: number,
+    buffer: ImageData,
+    targetCtx: CanvasRenderingContext2D,
+    scaledWidth: number,
+    scaledHeight: number,
+  ) => void;
 }
 
 interface IDragEffectCanvases {
@@ -141,76 +150,27 @@ export class DragSliceTool extends BaseTool {
 
     // Phase 3: Draw ALL 3 layers from MaskVolume (multi-layer compositing)
     if (nrrd.switchSliceFlag) {
-      const { volumes } = this.ctx.protectedData.maskData;
       const axis = this.ctx.protectedData.axis;
       const sliceIndex = nrrd.currentIndex;
 
-      // Draw layer1 (to drawingLayerOneCtx)
-      this.drawMaskLayerFromVolume(
-        volumes.layer1,
-        axis,
-        sliceIndex,
-        this.ctx.protectedData.ctxes.drawingLayerOneCtx
-      );
+      // Get a single reusable buffer — shared across all 3 layer renders
+      const buffer = this.callbacks.getOrCreateSliceBuffer(axis);
+      if (buffer) {
+        const w = nrrd.changedWidth;
+        const h = nrrd.changedHeight;
 
-      // Draw layer2 (to drawingLayerTwoCtx)
-      this.drawMaskLayerFromVolume(
-        volumes.layer2,
-        axis,
-        sliceIndex,
-        this.ctx.protectedData.ctxes.drawingLayerTwoCtx
-      );
-
-      // Draw layer3 (to drawingLayerThreeCtx)
-      this.drawMaskLayerFromVolume(
-        volumes.layer3,
-        axis,
-        sliceIndex,
-        this.ctx.protectedData.ctxes.drawingLayerThreeCtx
-      );
+        this.callbacks.renderSliceToCanvas("layer1", axis, sliceIndex, buffer,
+          this.ctx.protectedData.ctxes.drawingLayerOneCtx, w, h);
+        this.callbacks.renderSliceToCanvas("layer2", axis, sliceIndex, buffer,
+          this.ctx.protectedData.ctxes.drawingLayerTwoCtx, w, h);
+        this.callbacks.renderSliceToCanvas("layer3", axis, sliceIndex, buffer,
+          this.ctx.protectedData.ctxes.drawingLayerThreeCtx, w, h);
+      }
 
       // Composite all layers to master canvas
       this.compositeAllLayers();
 
       nrrd.switchSliceFlag = false;
-    }
-  }
-
-  /**
-   * Draw a single layer's mask from MaskVolume to its canvas context
-   *
-   * Phase 3: Uses cached ImageData for better performance
-   */
-  private drawMaskLayerFromVolume(
-    volume: any,
-    axis: "x" | "y" | "z",
-    sliceIndex: number,
-    ctx: CanvasRenderingContext2D
-  ): void {
-    try {
-      // Determine which layer this volume belongs to
-      const { volumes } = this.ctx.protectedData.maskData;
-      let layerName = "layer1";
-      if (volume === volumes.layer2) layerName = "layer2";
-      else if (volume === volumes.layer3) layerName = "layer3";
-
-      // Get cached slice data
-      const imageData = this.callbacks.getCachedSliceImageData(layerName, axis, sliceIndex);
-
-      if (!imageData) return;
-
-      this.callbacks.setEmptyCanvasSize();
-      this.ctx.protectedData.ctxes.emptyCtx.putImageData(imageData, 0, 0);
-      ctx.drawImage(
-        this.ctx.protectedData.canvases.emptyCanvas,
-        0,
-        0,
-        this.ctx.nrrd_states.changedWidth,
-        this.ctx.nrrd_states.changedHeight
-      );
-    } catch (err) {
-      // Slice out of bounds or volume not ready - skip silently
-      console.warn(`Failed to draw mask layer for slice ${sliceIndex}:`, err);
     }
   }
 

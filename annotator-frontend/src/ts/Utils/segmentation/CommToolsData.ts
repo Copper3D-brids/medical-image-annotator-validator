@@ -17,9 +17,10 @@ import { enableDownload } from "./coreTools/divControlTools";
 export class CommToolsData {
   baseCanvasesSize: number = 1;
 
-  // Cache for MaskVolume slice reads to improve performance
-  private sliceImageCache: Map<string, ImageData> = new Map();
-  private _prewarmTimer: ReturnType<typeof setTimeout> | undefined;
+  // Reusable ImageData buffer for zero-allocation slice rendering
+  private _reusableSliceBuffer: ImageData | null = null;
+  private _reusableBufferWidth: number = 0;
+  private _reusableBufferHeight: number = 0;
 
   nrrd_states: INrrdStates = {
     originWidth: 0,
@@ -199,14 +200,52 @@ export class CommToolsData {
         },
       },
       canvases: {
+        /** 
+         * Caches raw image data from the current slice. 
+         * Used as a source for zoom/pan operations to avoid repeated decoding.
+         * Initialized as null, set in NrrdTools.ts.
+         */
         originCanvas: null,
+
+        /** 
+         * Top-most interaction layer.
+         * Captures mouse/pen events and displays real-time drawing strokes 
+         * before they are committed to a specific layer.
+         */
         drawingCanvas: canvases[0],
+
+        /** 
+         * Background layer displaying the actual medical image slice (CT/MRI).
+         * This is the "base" image the user sees.
+         */
         displayCanvas: canvases[1],
+
+        /** 
+         * Composite display layer.
+         * Merges individual segmentation layers (1, 2, 3) for unified visualization 
+         * on top of the medical image.
+         */
         drawingCanvasLayerMaster: canvases[2],
+
+        /** Storage layer for Segmentation Mask 1 */
         drawingCanvasLayerOne: canvases[3],
+
+        /** Storage layer for Segmentation Mask 2 */
         drawingCanvasLayerTwo: canvases[4],
+
+        /** Storage layer for Segmentation Mask 3 */
         drawingCanvasLayerThree: canvases[5],
+
+        /** 
+         * Dedicated layer for 3D Sphere tool visualization. 
+         * Kept separate to allow independent rendering of sphere UI elements.
+         */
         drawingSphereCanvas: canvases[6],
+
+        /** 
+         * Off-screen scratchpad canvas.
+         * Used for internal image processing, scaling, and format conversion.
+         */
         emptyCanvas: canvases[7],
       },
       ctxes: {
@@ -429,12 +468,11 @@ export class CommToolsData {
   /**
    * Get a painted mask image (IPaintImage) based on current axis and input slice index.
    *
-   * Phase 2: Primary path reads from MaskVolume using getSliceRawImageData
-   * for lossless RGBA round-trip with caching; falls back to legacy IPaintImages.
+   * Phase 3: Reads directly from MaskVolume (no caching needed — reads are fast).
    *
    * @param axis "x" | "y" | "z"
    * @param sliceIndex number
-   * @param paintedImages IPaintImages, All painted mask images.
+   * @param paintedImages IPaintImages (unused, kept for API compatibility)
    * @returns IPaintImage with the mask for the given slice, or undefined if not found
    */
   filterDrawedImage(
@@ -442,161 +480,100 @@ export class CommToolsData {
     sliceIndex: number,
     paintedImages: IPaintImages
   ): IPaintImage | undefined {
-    // Primary: read raw RGBA from MaskVolume (lossless round-trip) with caching
     try {
       const volume = this.getCurrentVolume();
-
       if (volume) {
-        // Check cache first
-        const cacheKey = `${this.gui_states.layer}_${axis}_${sliceIndex}`;
-        let imageData = this.sliceImageCache.get(cacheKey);
-
-        if (!imageData) {
-          imageData = volume.getSliceRawImageData(sliceIndex, axis);
-          this.sliceImageCache.set(cacheKey, imageData);
-        }
-
+        const imageData = volume.getSliceRawImageData(sliceIndex, axis);
         return { index: sliceIndex, image: imageData };
       }
     } catch (err) {
-      // Volume not ready or slice out of bounds — fall through to legacy path
+      // Volume not ready or slice out of bounds
     }
-
-    // Fallback: legacy IPaintImages lookup
-    const legacyResult = paintedImages[axis].filter((item) => {
-      return item.index === sliceIndex;
-    })[0];
-    return legacyResult;
-  }
-
-  private hasNonZeroPixels(imageData: ImageData): boolean {
-    const data = imageData.data;
-    // Quick check: only scan first 256 pixels for performance
-    const limit = Math.min(256 * 4, data.length);
-    for (let i = 0; i < limit; i += 4) {
-      if (data[i] !== 0 || data[i+1] !== 0 || data[i+2] !== 0 || data[i+3] !== 0) {
-        return true;
-      }
-    }
-    return false;
+    return undefined;
   }
 
   /**
-   * Clear the cache for a specific slice when it's modified.
-   * Called after drawing operations to ensure fresh data on next read.
+   * Get or create a reusable ImageData buffer for the given axis.
    *
-   * @param layer - Layer name: "layer1", "layer2", or "layer3"
+   * Reuses the same buffer across multiple slice renders to avoid
+   * allocating a new ImageData per layer per slice switch.
+   * The buffer is only reallocated when slice dimensions change (axis switch).
+   *
    * @param axis - Axis: "x", "y", or "z"
-   * @param sliceIndex - Slice index
+   * @returns Reusable ImageData buffer with correct dimensions
    */
-  clearSliceCache(layer: string, axis: "x" | "y" | "z", sliceIndex: number): void {
-    const cacheKey = `${layer}_${axis}_${sliceIndex}`;
-    this.sliceImageCache.delete(cacheKey);
-  }
-
-  /**
-   * Clear all cached slice images.
-   * Called when clearing all masks or switching datasets.
-   */
-  clearAllSliceCache(): void {
-    if (this._prewarmTimer !== undefined) {
-      clearTimeout(this._prewarmTimer);
-      this._prewarmTimer = undefined;
-    }
-    this.sliceImageCache.clear();
-  }
-
-  /**
-   * Pre-warm the slice cache for a given axis in the background.
-   * Uses setTimeout(0) batches to avoid blocking the UI thread.
-   *
-   * @param axis - Axis to pre-warm: "x", "y", or "z"
-   */
-  prewarmCacheForAxis(axis: "x" | "y" | "z"): void {
-    // Cancel any pending pre-warm
-    if (this._prewarmTimer !== undefined) {
-      clearTimeout(this._prewarmTimer);
-      this._prewarmTimer = undefined;
-    }
-
-    const layers = ["layer1", "layer2", "layer3"] as const;
-    let maxSlice: number;
+  getOrCreateSliceBuffer(axis: "x" | "y" | "z"): ImageData | null {
     try {
       const vol = this.getVolumeForLayer("layer1");
       const dims = vol.getDimensions();
-      maxSlice = axis === "x" ? dims.width : axis === "y" ? dims.height : dims.depth;
+      const [w, h] =
+        axis === "z" ? [dims.width, dims.height] :
+          axis === "y" ? [dims.width, dims.depth] :
+            [dims.height, dims.depth];
+
+      if (
+        !this._reusableSliceBuffer ||
+        this._reusableBufferWidth !== w ||
+        this._reusableBufferHeight !== h
+      ) {
+        this._reusableSliceBuffer = new ImageData(w, h);
+        this._reusableBufferWidth = w;
+        this._reusableBufferHeight = h;
+      }
+
+      return this._reusableSliceBuffer;
     } catch {
-      return; // Volume not ready
+      return null; // Volume not ready
     }
-
-    if (maxSlice <= 1) return;
-
-    const BATCH_SIZE = 10;
-    let current = 0;
-
-    const warmBatch = () => {
-      const end = Math.min(current + BATCH_SIZE, maxSlice);
-      for (let s = current; s < end; s++) {
-        for (const layer of layers) {
-          const cacheKey = `${layer}_${axis}_${s}`;
-          if (!this.sliceImageCache.has(cacheKey)) {
-            try {
-              const volume = this.getVolumeForLayer(layer);
-              if (volume) {
-                const imageData = volume.getSliceRawImageData(s, axis);
-                this.sliceImageCache.set(cacheKey, imageData);
-              }
-            } catch { /* skip invalid slices */ }
-          }
-        }
-      }
-      current = end;
-      if (current < maxSlice) {
-        this._prewarmTimer = setTimeout(warmBatch, 0);
-      } else {
-        this._prewarmTimer = undefined;
-      }
-    };
-
-    this._prewarmTimer = setTimeout(warmBatch, 0);
   }
 
   /**
-   * Get cached slice ImageData for a specific layer.
-   * Public method for tools to access cached slice data.
+   * Render a layer's slice into a reusable buffer and draw to the target canvas.
+   *
+   * Uses MaskVolume.getSliceRawImageDataInto() for zero-allocation rendering.
+   * The caller should obtain the buffer via getOrCreateSliceBuffer() and reuse
+   * it across multiple layer renders.
    *
    * @param layer - Layer name: "layer1", "layer2", or "layer3"
    * @param axis - Axis: "x", "y", or "z"
    * @param sliceIndex - Slice index
-   * @returns Cached ImageData or newly created ImageData
+   * @param buffer - Reusable ImageData buffer (from getOrCreateSliceBuffer)
+   * @param targetCtx - Canvas context to draw the result onto
+   * @param scaledWidth - Target display width
+   * @param scaledHeight - Target display height
    */
-  getCachedSliceImageData(
+  renderSliceToCanvas(
     layer: string,
     axis: "x" | "y" | "z",
-    sliceIndex: number
-  ): ImageData | null {
-    const cacheKey = `${layer}_${axis}_${sliceIndex}`;
-
-    // Check cache first
-    let imageData = this.sliceImageCache.get(cacheKey);
-
-    if (imageData) {
-      return imageData;
-    }
-
-    // Cache miss - read from volume
+    sliceIndex: number,
+    buffer: ImageData,
+    targetCtx: CanvasRenderingContext2D,
+    scaledWidth: number,
+    scaledHeight: number,
+  ): void {
     try {
       const volume = this.getVolumeForLayer(layer);
-      if (volume) {
-        imageData = volume.getSliceRawImageData(sliceIndex, axis);
-        // Store in cache
-        this.sliceImageCache.set(cacheKey, imageData);
-        return imageData;
-      }
-    } catch (err) {
-      console.warn(`Failed to get cached slice data for ${layer} ${axis} ${sliceIndex}:`, err);
-    }
+      if (!volume) return;
 
-    return null;
+      volume.getSliceRawImageDataInto(sliceIndex, axis, buffer);
+      this.setEmptyCanvasSize(axis);
+      this.protectedData.ctxes.emptyCtx.putImageData(buffer, 0, 0);
+      targetCtx.drawImage(
+        this.protectedData.canvases.emptyCanvas,
+        0, 0, scaledWidth, scaledHeight
+      );
+    } catch (err) {
+      // Slice out of bounds or volume not ready — skip silently
+    }
+  }
+
+  /**
+   * Invalidate the reusable buffer (e.g. when switching datasets).
+   * The buffer will be lazily recreated on next use.
+   */
+  invalidateSliceBuffer(): void {
+    this._reusableSliceBuffer = null;
+    this._reusableBufferWidth = 0;
+    this._reusableBufferHeight = 0;
   }
 }

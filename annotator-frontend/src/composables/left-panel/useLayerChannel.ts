@@ -11,9 +11,6 @@ import * as Copper from "@/ts/index";
 
 // ===== Types =====
 
-export interface ILayerChannelDeps {
-    segmentationManager: Ref<Copper.SegmentationManager | undefined>;
-}
 
 export interface LayerConfig {
     id: Copper.LayerId;
@@ -62,7 +59,6 @@ export const CHANNEL_CONFIGS: ChannelConfig[] = [
 // ===== Composable =====
 
 export function useLayerChannel(deps: ILayerChannelDeps) {
-    const { segmentationManager } = deps;
 
     // ===== Reactive State =====
 
@@ -109,10 +105,6 @@ export function useLayerChannel(deps: ILayerChannelDeps) {
      */
     function setActiveLayer(layerId: Copper.LayerId): void {
         activeLayer.value = layerId;
-        if (segmentationManager.value?.isInitialized()) {
-            segmentationManager.value.setCurrentLayer(layerId);
-            console.log('[Phase 7 - Step 10b] Layer changed to:', layerId);
-        }
     }
 
     /**
@@ -120,10 +112,7 @@ export function useLayerChannel(deps: ILayerChannelDeps) {
      */
     function setActiveChannel(channel: Copper.ChannelValue): void {
         activeChannel.value = channel;
-        if (segmentationManager.value?.isInitialized()) {
-            segmentationManager.value.setCurrentChannel(channel);
-            console.log('[Phase 7 - Step 10b] Channel changed to:', channel);
-        }
+
     }
 
     /**
@@ -132,10 +121,7 @@ export function useLayerChannel(deps: ILayerChannelDeps) {
     function toggleLayerVisibility(layerId: Copper.LayerId): void {
         const newValue = !layerVisibility.value[layerId];
         layerVisibility.value[layerId] = newValue;
-        if (segmentationManager.value?.isInitialized()) {
-            segmentationManager.value.setLayerVisible(layerId, newValue);
-            console.log('[Phase 7 - Step 10b] Layer visibility:', layerId, newValue);
-        }
+
     }
 
     /**
@@ -144,10 +130,7 @@ export function useLayerChannel(deps: ILayerChannelDeps) {
     function toggleChannelVisibility(layerId: Copper.LayerId, channel: Copper.ChannelValue): void {
         const newValue = !channelVisibility.value[layerId][channel];
         channelVisibility.value[layerId][channel] = newValue;
-        if (segmentationManager.value?.isInitialized()) {
-            segmentationManager.value.setChannelVisible(layerId, channel, newValue);
-            console.log('[Phase 7 - Step 10b] Channel visibility:', layerId, channel, newValue);
-        }
+
     }
 
     /**
@@ -169,9 +152,6 @@ export function useLayerChannel(deps: ILayerChannelDeps) {
      * Sync state from SegmentationManager (called after initialization)
      */
     function syncFromManager(): void {
-        if (!segmentationManager.value?.isInitialized()) return;
-
-        const mgr = segmentationManager.value;
 
         // Sync active layer and channel
         activeLayer.value = mgr.getCurrentLayer();

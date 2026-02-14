@@ -341,17 +341,38 @@ export class MaskVolume {
     }
 
     const pixels = imageData.data;
+    const { width, height } = this.dims;
+    const ch = this.numChannels;
+    const volData = this.data;
 
-    if (this.numChannels >= 4) {
-      // Store all 4 RGBA channels for lossless round-trip
-      for (let j = 0; j < expectedH; j++) {
-        for (let i = 0; i < expectedW; i++) {
-          const [vx, vy, vz] = this.mapSliceToVolume(i, j, sliceIndex, axis);
-          const px = (j * expectedW + i) * 4;
-          this.data[this.getIndex(vx, vy, vz, 0)] = pixels[px];     // R
-          this.data[this.getIndex(vx, vy, vz, 1)] = pixels[px + 1]; // G
-          this.data[this.getIndex(vx, vy, vz, 2)] = pixels[px + 2]; // B
-          this.data[this.getIndex(vx, vy, vz, 3)] = pixels[px + 3]; // A
+    if (ch >= 4) {
+      // Store all 4 RGBA channels — direct memory access (no function calls)
+      if (axis === 'z') {
+        // Z-axis: slice data is contiguous — direct bulk copy
+        const offset = sliceIndex * this.bytesPerSlice;
+        volData.set(pixels.subarray(0, this.bytesPerSlice), offset);
+      } else if (axis === 'y') {
+        // Y-axis: each row (fixed z, fixed y, varying x) is contiguous
+        const rowBytes = width * ch;
+        let px = 0;
+        for (let j = 0; j < expectedH; j++) {
+          const rowStart = j * height * width * ch + sliceIndex * width * ch;
+          volData.set(pixels.subarray(px, px + rowBytes), rowStart);
+          px += rowBytes;
+        }
+      } else {
+        // X-axis: per-pixel inline math
+        let px = 0;
+        for (let j = 0; j < expectedH; j++) {
+          const zOffset = j * height * width * ch;
+          for (let i = 0; i < expectedW; i++) {
+            const baseIdx = zOffset + i * width * ch + sliceIndex * ch;
+            volData[baseIdx] = pixels[px];
+            volData[baseIdx + 1] = pixels[px + 1];
+            volData[baseIdx + 2] = pixels[px + 2];
+            volData[baseIdx + 3] = pixels[px + 3];
+            px += 4;
+          }
         }
       }
     } else {
@@ -430,6 +451,75 @@ export class MaskVolume {
     }
 
     return imageData;
+  }
+
+  /**
+   * Write slice data into an existing ImageData buffer (zero-allocation).
+   *
+   * Same semantics as {@link getSliceRawImageData} but avoids creating a new
+   * ImageData object on every call.  The caller is responsible for providing
+   * a buffer whose dimensions match the expected slice size.
+   *
+   * All pixels are fully overwritten — no clearing is needed beforehand.
+   *
+   * @param sliceIndex Index along the specified axis.
+   * @param axis       `'x'`, `'y'`, or `'z'` (default `'z'`).
+   * @param target     Pre-allocated ImageData to write into.
+   *
+   * @throws {Error}      If the volume has fewer than 4 channels.
+   * @throws {RangeError} If sliceIndex is out of bounds.
+   * @throws {Error}      If target dimensions don't match the slice.
+   */
+  getSliceRawImageDataInto(
+    sliceIndex: number,
+    axis: 'x' | 'y' | 'z' = 'z',
+    target: ImageData,
+  ): void {
+    if (this.numChannels < 4) {
+      throw new Error(
+        `getSliceRawImageDataInto requires ≥ 4 channels, volume has ${this.numChannels}`
+      );
+    }
+    this.validateSliceIndex(sliceIndex, axis);
+
+    const [sliceWidth, sliceHeight] = this.getSliceDimensions(axis);
+    if (target.width !== sliceWidth || target.height !== sliceHeight) {
+      throw new Error(
+        `Buffer size mismatch: expected ${sliceWidth}×${sliceHeight}, ` +
+        `got ${target.width}×${target.height}`
+      );
+    }
+
+    const { width, height } = this.dims;
+    const ch = this.numChannels;
+    const pixels = target.data;
+    const volData = this.data;
+
+    if (axis === 'z') {
+      const offset = sliceIndex * this.bytesPerSlice;
+      pixels.set(volData.subarray(offset, offset + this.bytesPerSlice));
+    } else if (axis === 'y') {
+      const rowBytes = width * ch;
+      let px = 0;
+      for (let j = 0; j < sliceHeight; j++) {
+        const rowStart = j * height * width * ch + sliceIndex * width * ch;
+        pixels.set(volData.subarray(rowStart, rowStart + rowBytes), px);
+        px += rowBytes;
+      }
+    } else {
+      let px = 0;
+      for (let j = 0; j < sliceHeight; j++) {
+        const zOffset = j * height * width * ch;
+        for (let i = 0; i < sliceWidth; i++) {
+          const baseIdx = zOffset + i * width * ch + sliceIndex * ch;
+          pixels[px] = volData[baseIdx];
+          pixels[px + 1] = volData[baseIdx + 1];
+          pixels[px + 2] = volData[baseIdx + 2];
+          pixels[px + 3] = volData[baseIdx + 3];
+          px += 4;
+        }
+      }
+    }
   }
 
   // ── Accessors ──────────────────────────────────────────────────────

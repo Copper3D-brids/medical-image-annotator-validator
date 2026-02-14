@@ -111,25 +111,6 @@ import emitter from "@/plugins/custom-emitter";
 import * as Copper from "@/ts/index";
 import { useLayerChannel, LAYER_CONFIGS, CHANNEL_CONFIGS, type ChannelConfig } from "@/composables/left-panel";
 
-// ===== State =====
-const segmentationManager = ref<Copper.SegmentationManager | undefined>();
-
-const {
-  activeLayer,
-  activeChannel,
-  layerVisibility,
-  channelVisibility,
-  controlsEnabled,
-  activeChannelColor,
-  activeLayerName,
-  setActiveLayer,
-  setActiveChannel,
-  toggleLayerVisibility,
-  toggleChannelVisibility,
-  enableControls,
-  disableControls,
-  syncFromManager,
-} = useLayerChannel({ segmentationManager });
 
 // ===== Logic =====
 

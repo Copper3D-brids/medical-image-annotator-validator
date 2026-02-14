@@ -19,7 +19,6 @@ import { MaskVolume } from "../core";
 export interface ImageStoreCallbacks {
   setEmptyCanvasSize: (axis?: "x" | "y" | "z") => void;
   drawImageOnEmptyImage: (canvas: HTMLCanvasElement) => void;
-  clearSliceCache: (layer: string, axis: "x" | "y" | "z", sliceIndex: number) => void;
 }
 
 export class ImageStoreHelper extends BaseTool {
@@ -127,9 +126,6 @@ export class ImageStoreHelper extends BaseTool {
           imageData,
           this.ctx.protectedData.axis
         );
-
-        // Clear cache for this slice since it's been modified
-        this.callbacks.clearSliceCache(layer, this.ctx.protectedData.axis, index);
       }
     } catch (err) {
       // Volume not ready — continue with legacy path only
@@ -308,7 +304,7 @@ export class ImageStoreHelper extends BaseTool {
     const sharedPlaceImages: ImageData[] = [];
     const base = Math.floor(
       this.ctx.nrrd_states.currentIndex *
-        this.ctx.nrrd_states.ratios[this.ctx.protectedData.axis]
+      this.ctx.nrrd_states.ratios[this.ctx.protectedData.axis]
     );
     const volume = this.getCurrentVolume();
     const axis = this.ctx.protectedData.axis;
@@ -363,7 +359,7 @@ export class ImageStoreHelper extends BaseTool {
   private hasNonZeroPixels(imageData: ImageData): boolean {
     const data = imageData.data;
     for (let i = 0; i < data.length; i += 4) {
-      if (data[i] !== 0 || data[i+1] !== 0 || data[i+2] !== 0 || data[i+3] !== 0) {
+      if (data[i] !== 0 || data[i + 1] !== 0 || data[i + 2] !== 0 || data[i + 3] !== 0) {
         return true;
       }
     }

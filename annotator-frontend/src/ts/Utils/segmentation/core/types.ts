@@ -92,15 +92,15 @@ export interface SliceRenderOptions {
  * | 8       | Extended annotation        | Purple   |
  */
 export const MASK_CHANNEL_COLORS: Readonly<ChannelColorMap> = {
-  0: { r: 0,   g: 0,   b: 0,   a: 0   },   // Background (transparent)
-  1: { r: 0,   g: 255, b: 0,   a: 153 },   // Green  — Primary / Tumor
-  2: { r: 255, g: 0,   b: 0,   a: 153 },   // Red    — Secondary / Edema
-  3: { r: 0,   g: 0,   b: 255, a: 153 },   // Blue   — Tertiary / Necrosis
-  4: { r: 255, g: 255, b: 0,   a: 153 },   // Yellow — Enhancement
-  5: { r: 255, g: 0,   b: 255, a: 153 },   // Magenta — Vessel / Boundary
-  6: { r: 0,   g: 255, b: 255, a: 153 },   // Cyan   — Additional
-  7: { r: 255, g: 128, b: 0,   a: 153 },   // Orange — Auxiliary
-  8: { r: 128, g: 0,   b: 255, a: 153 },   // Purple — Extended
+  0: { r: 0, g: 0, b: 0, a: 0 },   // Background (transparent)
+  1: { r: 0, g: 255, b: 0, a: 153 },   // Green  — Primary / Tumor
+  2: { r: 255, g: 0, b: 0, a: 153 },   // Red    — Secondary / Edema
+  3: { r: 0, g: 0, b: 255, a: 153 },   // Blue   — Tertiary / Necrosis
+  4: { r: 255, g: 255, b: 0, a: 153 },   // Yellow — Enhancement
+  5: { r: 255, g: 0, b: 255, a: 153 },   // Magenta — Vessel / Boundary
+  6: { r: 0, g: 255, b: 255, a: 153 },   // Cyan   — Additional
+  7: { r: 255, g: 128, b: 0, a: 153 },   // Orange — Auxiliary
+  8: { r: 128, g: 0, b: 255, a: 153 },   // Purple — Extended
 };
 
 /**

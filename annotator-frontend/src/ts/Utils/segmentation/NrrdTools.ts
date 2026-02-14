@@ -55,7 +55,8 @@ export class NrrdTools extends DrawToolCore {
       this.setIsDrawFalse.bind(this),
       this.flipDisplayImageByAxis.bind(this),
       this.setEmptyCanvasSize.bind(this),
-      this.getCachedSliceImageData.bind(this)
+      this.getOrCreateSliceBuffer.bind(this),
+      this.renderSliceToCanvas.bind(this),
     );
 
     // Inject EventRouter into DragOperator for centralized event handling
@@ -219,16 +220,14 @@ export class NrrdTools extends DrawToolCore {
     // Phase 2 Day 9: Re-initialize MaskVolume with real NRRD dimensions.
     // This replaces the 1×1×1 placeholders from CommToolsData constructor
     // and "turns on" all Day 7/8 volume read/write paths.
-    // Clear stale cache from previous case before creating new volumes
-    this.clearAllSliceCache();
+    // Invalidate reusable buffer from previous dataset
+    this.invalidateSliceBuffer();
     const [vw, vh, vd] = this.nrrd_states.dimensions;
     this.protectedData.maskData.volumes = {
       layer1: new MaskVolume(vw, vh, vd, 4),
       layer2: new MaskVolume(vw, vh, vd, 4),
       layer3: new MaskVolume(vw, vh, vd, 4),
     };
-    // Pre-warm cache for the default axis (z) in the background
-    this.prewarmCacheForAxis(this.protectedData.axis);
 
     this.nrrd_states.spaceOrigin = (
       randomSlice.x.volume.header.space_origin as number[]
@@ -285,7 +284,7 @@ export class NrrdTools extends DrawToolCore {
     loadingBar?: loadingBarType
   ) {
     console.log("setMask data", masksData);
-    
+
     if (!!masksData) {
       this.nrrd_states.loadMaskJson = true;
       if (loadingBar) {
@@ -615,8 +614,6 @@ export class NrrdTools extends DrawToolCore {
 
     this.protectedData.axis = axisTo;
     this.resetDisplaySlicesStatus();
-    // Pre-warm cache for the new axis in the background
-    this.prewarmCacheForAxis(axisTo);
     // for sphere plan a
     if (this.gui_states.sphere && !this.nrrd_states.spherePlanB) {
       this.drawSphere(
@@ -658,8 +655,8 @@ export class NrrdTools extends DrawToolCore {
       layer3: new MaskVolume(1, 1, 1, 4),
     };
 
-    // Clear slice cache
-    this.clearAllSliceCache();
+    // Invalidate reusable slice buffer
+    this.invalidateSliceBuffer();
 
     this.clearDictionary(this.protectedData.skipSlicesDic);
 
@@ -946,8 +943,8 @@ export class NrrdTools extends DrawToolCore {
       };
     }
 
-    // Clear slice cache
-    this.clearAllSliceCache();
+    // Invalidate reusable slice buffer
+    this.invalidateSliceBuffer();
   }
 
   /**
@@ -1066,7 +1063,7 @@ export class NrrdTools extends DrawToolCore {
   }
 
   /**
-   * Phase 3: Reload all mask layers from MaskVolume with caching
+   * Phase 3: Reload all mask layers from MaskVolume using buffer reuse
    * Replaces the old reloadMaskToLayer approach
    */
   private reloadMasksFromVolume(): void {
@@ -1083,73 +1080,28 @@ export class NrrdTools extends DrawToolCore {
       if (sliceIndex < 0) sliceIndex = 0;
     } catch { /* volume not ready */ }
 
-    // Save current layer
-    const originalLayer = this.gui_states.layer;
+    // Get a single reusable buffer shared across all 3 layer renders
+    const buffer = this.getOrCreateSliceBuffer(axis);
+    if (!buffer) return;
 
-    // Draw layer1 (temporarily switch to layer1 for cache key)
-    this.gui_states.layer = "layer1";
-    this.drawMaskLayerFromVolumeWithCache(
-      axis,
-      sliceIndex,
-      this.protectedData.ctxes.drawingLayerOneCtx
-    );
+    const w = this.nrrd_states.changedWidth;
+    const h = this.nrrd_states.changedHeight;
 
-    // Draw layer2
-    this.gui_states.layer = "layer2";
-    this.drawMaskLayerFromVolumeWithCache(
-      axis,
-      sliceIndex,
-      this.protectedData.ctxes.drawingLayerTwoCtx
-    );
+    // Clear all layer canvases
+    this.protectedData.ctxes.drawingLayerOneCtx.clearRect(0, 0, w, h);
+    this.protectedData.ctxes.drawingLayerTwoCtx.clearRect(0, 0, w, h);
+    this.protectedData.ctxes.drawingLayerThreeCtx.clearRect(0, 0, w, h);
 
-    // Draw layer3
-    this.gui_states.layer = "layer3";
-    this.drawMaskLayerFromVolumeWithCache(
-      axis,
-      sliceIndex,
-      this.protectedData.ctxes.drawingLayerThreeCtx
-    );
-
-    // Restore original layer
-    this.gui_states.layer = originalLayer;
+    // Render each layer using the shared buffer
+    this.renderSliceToCanvas("layer1", axis, sliceIndex, buffer,
+      this.protectedData.ctxes.drawingLayerOneCtx, w, h);
+    this.renderSliceToCanvas("layer2", axis, sliceIndex, buffer,
+      this.protectedData.ctxes.drawingLayerTwoCtx, w, h);
+    this.renderSliceToCanvas("layer3", axis, sliceIndex, buffer,
+      this.protectedData.ctxes.drawingLayerThreeCtx, w, h);
 
     // Composite all layers to master canvas
     this.compositeAllLayers();
-  }
-
-  /**
-   * Draw layer mask using the slice cache for better performance
-   */
-  private drawMaskLayerFromVolumeWithCache(
-    axis: "x" | "y" | "z",
-    sliceIndex: number,
-    ctx: CanvasRenderingContext2D
-  ): void {
-    // Clear the layer canvas first
-    ctx.clearRect(0, 0, this.nrrd_states.changedWidth, this.nrrd_states.changedHeight);
-
-    try {
-      // Use the proper cache accessor from CommToolsData
-      const imageData = this.getCachedSliceImageData(
-        this.gui_states.layer,
-        axis,
-        sliceIndex
-      );
-
-      if (imageData) {
-        this.setEmptyCanvasSize();
-        this.protectedData.ctxes.emptyCtx.putImageData(imageData, 0, 0);
-        ctx.drawImage(
-          this.protectedData.canvases.emptyCanvas,
-          0,
-          0,
-          this.nrrd_states.changedWidth,
-          this.nrrd_states.changedHeight
-        );
-      }
-    } catch (err) {
-      console.warn(`Failed to draw cached mask layer for slice ${sliceIndex}:`, err);
-    }
   }
 
 

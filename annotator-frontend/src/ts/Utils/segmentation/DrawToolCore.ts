@@ -87,7 +87,6 @@ export class DrawToolCore extends CommToolsData {
     this.imageStoreHelper = new ImageStoreHelper(toolCtx, {
       setEmptyCanvasSize: (axis?) => this.setEmptyCanvasSize(axis),
       drawImageOnEmptyImage: (canvas) => this.drawImageOnEmptyImage(canvas),
-      clearSliceCache: (layer, axis, sliceIndex) => this.clearSliceCache(layer, axis, sliceIndex),
     });
 
     this.sphereTool = new SphereTool(toolCtx, {

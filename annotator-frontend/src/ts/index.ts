@@ -24,34 +24,6 @@ import { configKiwriousHeart } from "./Utils/kiwrious/configKiwrious";
 import kiwrious from "./Utils/kiwrious/configKiwrious";
 import { NrrdTools } from "./Utils/segmentation/NrrdTools";
 // Phase 7: Segmentation Module - Unified exports
-import {
-  SegmentationManager,
-  StateManager,
-  type RenderingAdapter,
-  type DimensionAdapter,
-  type StateChangeCallback as ManagerStateChangeCallback,
-  type SegmentationState,
-  type GUIState,
-  type StateChangeListener,
-  type PartialStateUpdate,
-  type ImportMaskData,
-  type ExportMaskData,
-  // Step 7: Tool classes
-  PencilTool,
-  BrushTool,
-  EraserTool,
-  PanTool,
-  ZoomTool,
-  ContrastTool,
-  SphereTool,
-  CrosshairTool,
-  type ToolContext,
-  type GuiTool,
-  // Step 10b: Layer/Channel types and colors
-  type LayerId,
-  type ChannelValue,
-  CHANNEL_COLORS,
-} from "./Utils/segmentation/manager/index";
 
 import { Copper3dTrackballControls } from "./Controls/Copper3dTrackballControls";
 
@@ -104,20 +76,6 @@ export {
   MeshNodeTool,
   throttle,
   removeGuiFolderChilden,
-  // Phase 7: Segmentation Module
-  SegmentationManager,
-  StateManager,
-  // Step 7: Tool classes
-  PencilTool,
-  BrushTool,
-  EraserTool,
-  PanTool,
-  ZoomTool,
-  ContrastTool,
-  SphereTool,
-  CrosshairTool,
-  // Step 10b: Channel colors for UI
-  CHANNEL_COLORS,
 };
 
 export type {
@@ -137,21 +95,4 @@ export type {
   IGUIStates,
   IGuiParameterSettings,
   INrrdStates,
-  // Phase 7: Segmentation Module Types
-  RenderingAdapter,
-  DimensionAdapter,
-  ManagerStateChangeCallback,
-  SegmentationState,
-  GUIState,
-  StateChangeListener,
-  PartialStateUpdate,
-  ImportMaskData,
-  ExportMaskData,
-  // Step 7: Tool context type
-  ToolContext,
-  // Step 8: GuiTool type for tool selection
-  GuiTool,
-  // Step 10b: Layer/Channel types
-  LayerId,
-  ChannelValue,
 };

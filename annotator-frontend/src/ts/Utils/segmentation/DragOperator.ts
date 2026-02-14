@@ -36,7 +36,12 @@ export class DragOperator {
   private setIsDrawFalse: (target: number) => void;
   private flipDisplayImageByAxis: () => void;
   private setEmptyCanvasSize: (axis?: "x" | "y" | "z") => void;
-  private getCachedSliceImageData: (layer: string, axis: "x" | "y" | "z", sliceIndex: number) => ImageData | null;
+  private getOrCreateSliceBuffer: (axis: "x" | "y" | "z") => ImageData | null;
+  private renderSliceToCanvas: (
+    layer: string, axis: "x" | "y" | "z", sliceIndex: number,
+    buffer: ImageData, targetCtx: CanvasRenderingContext2D,
+    scaledWidth: number, scaledHeight: number,
+  ) => void;
 
   // EventRouter for centralized event handling
   private eventRouter: EventRouter | null = null;
@@ -52,7 +57,12 @@ export class DragOperator {
     setIsDrawFalse: (target: number) => void,
     flipDisplayImageByAxis: () => void,
     setEmptyCanvasSize: (axis?: "x" | "y" | "z") => void,
-    getCachedSliceImageData: (layer: string, axis: "x" | "y" | "z", sliceIndex: number) => ImageData | null
+    getOrCreateSliceBuffer: (axis: "x" | "y" | "z") => ImageData | null,
+    renderSliceToCanvas: (
+      layer: string, axis: "x" | "y" | "z", sliceIndex: number,
+      buffer: ImageData, targetCtx: CanvasRenderingContext2D,
+      scaledWidth: number, scaledHeight: number,
+    ) => void,
   ) {
     this.container = container;
     this.drawingPrameters = drawingPrameters;
@@ -64,7 +74,8 @@ export class DragOperator {
     this.setIsDrawFalse = setIsDrawFalse;
     this.flipDisplayImageByAxis = flipDisplayImageByAxis;
     this.setEmptyCanvasSize = setEmptyCanvasSize;
-    this.getCachedSliceImageData = getCachedSliceImageData;
+    this.getOrCreateSliceBuffer = getOrCreateSliceBuffer;
+    this.renderSliceToCanvas = renderSliceToCanvas;
 
     this.showDragNumberDiv = createShowSliceNumberDiv();
     this.init();
@@ -98,7 +109,9 @@ export class DragOperator {
         setIsDrawFalse: (target) => this.setIsDrawFalse(target),
         flipDisplayImageByAxis: () => this.flipDisplayImageByAxis(),
         setEmptyCanvasSize: (axis?) => this.setEmptyCanvasSize(axis),
-        getCachedSliceImageData: (layer, axis, sliceIndex) => this.getCachedSliceImageData(layer, axis, sliceIndex),
+        getOrCreateSliceBuffer: (axis) => this.getOrCreateSliceBuffer(axis),
+        renderSliceToCanvas: (layer, axis, sliceIndex, buffer, targetCtx, w, h) =>
+          this.renderSliceToCanvas(layer, axis, sliceIndex, buffer, targetCtx, w, h),
       },
       this.showDragNumberDiv,
       dragEffectCanvases
