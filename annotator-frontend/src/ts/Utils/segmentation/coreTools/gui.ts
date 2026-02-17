@@ -106,7 +106,7 @@ function setupGui(configs: IConfigGUI): IGuiParameterSettings {
     .max(1)
     .step(0.01);
   actionsFolder
-    .add(configs.gui_states, "segmentation")
+    .add(configs.gui_states, "pencil")
     .name("Pencil")
     .onChange(() => {
       updatePencilState();
@@ -295,7 +295,7 @@ function setupGui(configs: IConfigGUI): IGuiParameterSettings {
   };
 
   const updatePencilState = () => {
-    if (configs.gui_states.segmentation) {
+    if (configs.gui_states.pencil) {
       // add canvas brush circle move event listeners
       configs.drawingCanvas.removeEventListener(
         "mouseover",
@@ -415,7 +415,7 @@ function setupGui(configs: IConfigGUI): IGuiParameterSettings {
       max: 1,
       step: 0.01,
     },
-    segmentation: {
+    pencil: {
       name: "Pencil",
       onChange: updatePencilState,
     },

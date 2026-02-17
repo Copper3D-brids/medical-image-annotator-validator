@@ -60,7 +60,6 @@
  * Uses Vuetify color picker integrated with Copper3D GUI state.
  *
  * @listens Segmentation:FinishLoadAllCaseImages - Enables color picker after loading
- * @listens Core:SegmentationManager - Receives SegmentationManager instance (Phase 7 - Step 10)
  */
 import { ref, onMounted, onUnmounted } from "vue";
 import emitter from "@/plugins/custom-emitter";

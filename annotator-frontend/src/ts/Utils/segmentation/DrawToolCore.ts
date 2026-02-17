@@ -607,6 +607,8 @@ export class DrawToolCore extends CommToolsData {
       switch (layer) {
         case "layer1":
           paintImages = this.protectedData.maskData.paintImagesLayer1;
+          console.log("paintImagesLayer1", paintImages);
+
           break;
         case "layer2":
           paintImages = this.protectedData.maskData.paintImagesLayer2;
@@ -655,7 +657,7 @@ export class DrawToolCore extends CommToolsData {
             this.drawingPrameters.handleOnDrawingMouseMove
           );
           if (!this.gui_states.Eraser) {
-            if (this.gui_states.segmentation) {
+            if (this.gui_states.pencil) {
               // Clear only the current layer canvas (NOT master)
               canvas.width = canvas.width;
               // Redraw previous layer data from volume
@@ -803,7 +805,7 @@ export class DrawToolCore extends CommToolsData {
         return;
       }
 
-      if (!this.gui_states.segmentation) {
+      if (!this.gui_states.pencil) {
         this.setIsDrawFalse(100);
       }
     };
@@ -836,7 +838,7 @@ export class DrawToolCore extends CommToolsData {
         }
 
         this.setIsDrawFalse(100);
-        if (this.gui_states.segmentation) {
+        if (this.gui_states.pencil) {
           this.setIsDrawFalse(1000);
         }
       }
@@ -864,7 +866,7 @@ export class DrawToolCore extends CommToolsData {
         } else {
           if (this.protectedData.Is_Shift_Pressed) {
             if (
-              !this.gui_states.segmentation &&
+              !this.gui_states.pencil &&
               !this.gui_states.Eraser &&
               this.nrrd_states.Mouse_Over
             ) {
@@ -948,7 +950,7 @@ export class DrawToolCore extends CommToolsData {
       this.nrrd_states.drawStartPos.x,
       this.nrrd_states.drawStartPos.y
     );
-    if (this.gui_states.segmentation) {
+    if (this.gui_states.pencil) {
       ctx.strokeStyle = this.gui_states.color;
       ctx.lineWidth = this.gui_states.lineWidth;
     } else {

@@ -92,13 +92,13 @@ type TGuiSettings = {
 };
 
 /** Current functional mode radio selection */
-const commFuncRadios = ref("segmentation");
+const commFuncRadios = ref("pencil");
 
 /** Whether functional radios are disabled */
 const commFuncRadiosDisabled = ref(true);
 
 /** Previously selected functional button (for mode switching logic) */
-const prebtn = ref("segmentation")
+const prebtn = ref("pencil")
 
 /** Current slider mode radio selection */
 const commSliderRadios = ref("");
@@ -137,7 +137,7 @@ let nrrdTools:Copper.NrrdTools;
 
 
 const commFuncRadioValues = ref([
-  { label: "Pencil", value: "segmentation", color: "success" },
+  { label: "Pencil", value: "pencil", color: "success" },
   { label: "Brush", value: "brush", color: "info" },
   { label: "Eraser", value: "Eraser", color: "error" },
 ]);
@@ -192,7 +192,7 @@ function manageEmitters() {
 const emitterOnCaseSwitched = async (casename:string) => {
   try{
     setTimeout(()=>{
-      commFuncRadios.value = "segmentation"
+      commFuncRadios.value = "pencil"
     },500)
   }catch(e){
     console.log("first time load images -- ignore");
@@ -275,11 +275,11 @@ function toggleFuncRadios(val: any) {
         guiSettings.value.guiState["Eraser"] = true;
       } else {
         guiSettings.value.guiState["Eraser"] = false;
-        if (val === "segmentation") {
-          guiSettings.value.guiState["segmentation"] = true;
+        if (val === "pencil") {
+          guiSettings.value.guiState["pencil"] = true;
         } else {
-          guiSettings.value.guiState["segmentation"] = false;
-          guiSettings.value.guiSetting["segmentation"].onChange();
+          guiSettings.value.guiState["pencil"] = false;
+          guiSettings.value.guiSetting["pencil"].onChange();
           return;
         }
       }

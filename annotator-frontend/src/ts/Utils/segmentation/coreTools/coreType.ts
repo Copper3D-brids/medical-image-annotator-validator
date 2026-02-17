@@ -151,7 +151,7 @@ interface IGUIStates {
   globalAlpha: number;
   lineWidth: number;
   color: string;
-  segmentation: true;
+  pencil: boolean;
   fillColor: string;
   brushColor: string;
   brushAndEraserSize: number;
@@ -311,7 +311,7 @@ interface IGuiParameterSettings {
     max: number,
     step: number,
   },
-  segmentation: {
+  pencil: {
     name: "Pencil",
     onChange: () => void,
   },

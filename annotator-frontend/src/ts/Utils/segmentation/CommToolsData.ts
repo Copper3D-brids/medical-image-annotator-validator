@@ -124,7 +124,7 @@ export class CommToolsData {
     globalAlpha: 0.4,
     lineWidth: 2,
     color: "#f50a33",
-    segmentation: true,
+    pencil: true,
     fillColor: "#00ff00",
     brushColor: "#00ff00",
     brushAndEraserSize: 15,
@@ -493,7 +493,7 @@ export class CommToolsData {
         const dims = volume.getDimensions();
         const [w, h] = axis === 'z' ? [dims.width, dims.height]
           : axis === 'y' ? [dims.width, dims.depth]
-          : [dims.height, dims.depth];
+            : [dims.height, dims.depth];
         const imageData = new ImageData(w, h);
         const channelVis = this.gui_states.channelVisibility[this.gui_states.layer];
         volume.renderLabelSliceInto(sliceIndex, axis, imageData, channelVis);

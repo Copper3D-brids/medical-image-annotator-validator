@@ -8,7 +8,7 @@
       ></v-list-item>
       <ImageCtl />
       <OperationCtl />
-      <NavRightPanelCore />
+      <NavRightPanel />
       <SysOpts>
         <SysOptsCtl :key-board-setting="true" :debug-setting="true" :sticky-nav-setting="true" :stick="stickMode" :nrrd-tools="nrrdTools" @update-debug="handleUpdateDebug" @update-sticky="handleUpdateSticky"/>
       </SysOpts>
@@ -38,7 +38,7 @@
 import { ref, onMounted, onUnmounted } from "vue";
 import ImageCtl from "@/components/segmentation/NrrdImageCtl.vue";
 import OperationCtl from "@/components/segmentation/OperationCtl.vue";
-import NavRightPanelCore from "./NavRightPanel.vue";
+import NavRightPanel from "./NavRightPanel.vue";
 import SysOpts from "@/components/segmentation/SysOpts.vue";
 import SysOptsCtl from "@/components/segmentation/SysOptsCtl.vue";
 import emitter from "@/plugins/custom-emitter";
