@@ -559,14 +559,20 @@ export class MaskVolume {
 
     const pixels = imageData.data;
 
+    // Alpha threshold to ignore anti-aliased edge fringe from canvas fill().
+    // Pixels with alpha < 128 are treated as transparent to prevent mask growth
+    // on each save→reload round-trip (semi-transparent edges would otherwise
+    // become fully opaque labels, expanding the mask by ~1px).
+    const ALPHA_THRESHOLD = 128;
+
     for (let j = 0; j < expectedH; j++) {
       for (let i = 0; i < expectedW; i++) {
         const [vx, vy, vz] = this.mapSliceToVolume(i, j, sliceIndex, axis);
         const px = (j * expectedW + i) * 4;
         const alpha = pixels[px + 3];
 
-        if (alpha === 0) {
-          // Transparent pixel → background label
+        if (alpha < ALPHA_THRESHOLD) {
+          // Transparent or semi-transparent fringe → background label
           this.data[this.getIndex(vx, vy, vz, 0)] = 0;
           continue;
         }

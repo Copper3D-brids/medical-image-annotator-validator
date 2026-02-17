@@ -121,7 +121,7 @@ export class CommToolsData {
     mainAreaSize: 3,
     dragSensitivity: 75,
     Eraser: false,
-    globalAlpha: 0.6,
+    globalAlpha: 0.4,
     lineWidth: 2,
     color: "#f50a33",
     segmentation: true,
