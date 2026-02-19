@@ -98,7 +98,26 @@ def gltf_converter(case_id: str, layer_id: str = "layer1"):
             # Send notification to frontend via WebSocket
             asyncio.run(notify_frontend_gltf(case_id, str(glb_path)))
         else:
-            print(f"GLTF conversion failed for case {case_id}, {layer_id}")
+            print(f"GLTF conversion failed for case {case_id}, {layer_id}: No mask data found")
+
+            # Clear GLB and OBJ files when there's no data
+            glb_path_file = Path(case_output.mask_glb_path)
+            obj_path_file = Path(case_output.mask_obj_path)
+
+            if glb_path_file.exists():
+                glb_path_file.write_text("")
+                case_output.mask_glb_size = 0
+
+            if obj_path_file.exists():
+                obj_path_file.write_text("")
+                case_output.mask_obj_size = 0
+
+            # Commit changes to database
+            session.commit()
+            session.refresh(case_output)
+
+            # Send failure notification to frontend
+            asyncio.run(notify_frontend_gltf_error(case_id, layer_id, "No mask data to convert"))
 
 
 async def notify_frontend_gltf(case_id: str, gltf_path: str):
@@ -111,4 +130,16 @@ async def notify_frontend_gltf(case_id: str, gltf_path: str):
         "volume": TumourData.volume
     })
     print(f"Sent GLTF notification to frontend for case {case_id}")
+
+
+async def notify_frontend_gltf_error(case_id: str, layer_id: str, error_message: str):
+    """Send GLTF error notification to the connected frontend via WebSocket."""
+    await manager.send_notification(case_id, {
+        "status": "error",
+        "case_id": case_id,
+        "action": "gltf_conversion_error",
+        "layer_id": layer_id,
+        "error": error_message
+    })
+    print(f"Sent GLTF error notification to frontend for case {case_id}: {error_message}")
 

@@ -1,12 +1,12 @@
 const eventNames = [
     "Core:NrrdTools",
     "Core:SegmentationManager",
-    'TumourStudy:Casename', 
-    'TumourStudy:Status', 
-    "TumourStudy:NextCase", 
-    "TumourStudy:ImageLoaded", 
-    "TumourStudy:CaseReport", 
-    "TumourStudy:AllCasesCompleted", 
+    'TumourStudy:Casename',
+    'TumourStudy:Status',
+    "TumourStudy:NextCase",
+    "TumourStudy:ImageLoaded",
+    "TumourStudy:CaseReport",
+    "TumourStudy:AllCasesCompleted",
     "TumourStudy:UpdateTumourPosition",
     "TumourStudy:UpdateSkinPosition",
     "TumourStudy:UpdateRibcagePosition",
@@ -34,6 +34,7 @@ const eventNames = [
     "Common:OnAppMounted",
     "IntroGuide:OperationStatus",
     "IntroGuide:DrawerStatus",
+    "toast:show",
 ];
 type EventNames = (typeof eventNames)[number];
 

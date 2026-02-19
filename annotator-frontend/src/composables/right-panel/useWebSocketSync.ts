@@ -11,7 +11,9 @@
 import { ref, type Ref } from "vue";
 import { useSingleFile } from "@/plugins/api/index";
 import { switchAnimationStatus } from "@/components/viewer/utils";
-import * as Copper from "copper3d";
+import { useToast } from "@/composables/useToast";
+// import * as Copper from "copper3d";
+import * as Copper from "@/ts/index"
 import * as THREE from "three";
 import { IDetails } from "@/models";
 
@@ -54,6 +56,7 @@ export function useWebSocketSync(deps: IWebSocketDeps) {
         initPanelValue,
     } = deps;
 
+    const toast = useToast();
     let socket: WebSocket | null = null;
 
     /**
@@ -89,13 +92,15 @@ export function useWebSocketSync(deps: IWebSocketDeps) {
 
                 const objUrl = currentCaseDetails.value?.output.mask_obj_path;
                 if (objUrl) {
-                    const file = await useSingleFile(objUrl);
+                    // Use cache busting parameter to get the latest file
+                    const file = await useSingleFile(objUrl, true);
                     if (file) {
                         if (maskTumourObj.value) {
                             URL.revokeObjectURL(maskTumourObj.value);
                         }
                         maskTumourObj.value = URL.createObjectURL(file);
                         loadSegmentTumour(maskTumourObj.value);
+                        toast.success("3D model loaded successfully");
                     }
                 }
 
@@ -106,6 +111,57 @@ export function useWebSocketSync(deps: IWebSocketDeps) {
 
                 switchAnimationStatus(loadingContainer.value!, progress.value!, "none");
                 openLoading.value = false;
+            } else if (data.status === "complete" && data.action === "reload_gltf") {
+                console.log("Received GLTF reload notification:", data);
+
+                if (data.volume) {
+                    tumourVolume.value = Math.ceil(data.volume) / 1000;
+                }
+
+                const glbUrl = currentCaseDetails.value?.output.mask_glb_path;
+                if (glbUrl) {
+                    // Use cache busting parameter to get the latest file
+                    const file = await useSingleFile(glbUrl, true);
+                    console.log('GLB file loaded:', file);
+
+                    if (file) {
+                        if (maskTumourObj.value) {
+                            URL.revokeObjectURL(maskTumourObj.value);
+                        }
+                        maskTumourObj.value = URL.createObjectURL(file);
+                        loadSegmentTumour(maskTumourObj.value);
+                        toast.success("3D model updated successfully");
+                    }
+                }
+
+                if (preTumourSphere.value && copperScene.value) {
+                    copperScene.value.scene.remove(preTumourSphere.value);
+                    preTumourSphere.value = undefined;
+                }
+
+                switchAnimationStatus(loadingContainer.value!, progress.value!, "none");
+                openLoading.value = false;
+            } else if (data.status === "error" && data.action === "gltf_conversion_error") {
+                console.error("GLTF conversion error:", data);
+
+                // Hide loading animation
+                if (loadingContainer.value && progress.value) {
+                    switchAnimationStatus(loadingContainer.value, progress.value, "none");
+                }
+                openLoading.value = false;
+
+                // Remove existing mesh from scene
+                if (segementTumour3DModel.value && copperScene.value) {
+                    copperScene.value.scene.remove(segementTumour3DModel.value);
+                    segementTumour3DModel.value = undefined;
+                }
+
+                // Reset tumour volume
+                tumourVolume.value = 0;
+
+                // Show user-friendly error message
+                const errorMsg = `Cannot convert ${data.layer_id} to 3D model: ${data.error}`;
+                toast.warning(errorMsg);
             } else if (data.status === "delete" || event.data === "delete") {
                 tumourVolume.value = 0;
                 if (segementTumour3DModel.value && copperScene.value) {
@@ -116,7 +172,8 @@ export function useWebSocketSync(deps: IWebSocketDeps) {
                 openLoading.value = false;
             }
         } catch (e) {
-            console.log("Received non-JSON message:", event.data);
+            console.error("Error handling WebSocket message:", e);
+            console.log("Event data:", event.data);
             openLoading.value = false;
         }
     }

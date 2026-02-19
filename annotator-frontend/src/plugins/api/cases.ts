@@ -15,8 +15,15 @@ export async function useNrrdCaseNames(auth: IAuth) {
     return names;
 }
 
-export async function useSingleFile(path: string) {
-    const file = http.getBlob<Blob>("/single-file", { path })
+export async function useSingleFile(path: string, cacheBust: boolean = false) {
+    const params: Record<string, any> = { path };
+
+    // Add timestamp parameter to bypass browser cache if requested
+    if (cacheBust) {
+        params._t = Date.now();
+    }
+
+    const file = http.getBlob<Blob>("/single-file", params);
     return file;
 }
 

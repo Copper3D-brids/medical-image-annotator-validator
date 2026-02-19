@@ -40,7 +40,8 @@
  * @exposes resetNrrdImageView - Function to reset the view
  */
 import * as THREE from "three";
-import * as Copper from "copper3d";
+// import * as Copper from "copper3d";
+import * as Copper from "@/ts/index";
 import "copper3d/dist/css/style.css";
 import { ref, onMounted } from 'vue'
 import loadingGif from "@/assets/loading.svg";
@@ -171,6 +172,21 @@ function initScene(name: string) {
     // copperScene.updateBackground("#8b6d96", "#18e5e5");
     // Copper.setHDRFilePath("venice_sunset_1k.hdr");
     // appRenderer.updateEnvironment();
+
+    // Add lights for proper material rendering
+    // Ambient light provides base illumination
+    // const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // copperScene.scene.add(ambientLight);
+
+    // // Directional light for main illumination and shadows
+    // const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    // directionalLight.position.set(1, 1, 1);
+    // copperScene.scene.add(directionalLight);
+
+    // // Additional directional light from opposite side for balanced lighting
+    // const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+    // directionalLight2.position.set(-1, -1, -1);
+    // copperScene.scene.add(directionalLight2);
   }
 }
 

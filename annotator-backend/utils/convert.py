@@ -238,11 +238,29 @@ def convert_nii_to_gltf(case_output: CaseOutput, layer_id: str = "layer1", glb_p
 
                 # Assign color to this mesh based on channel
                 color = CHANNEL_COLORS.get(channel_id, [255, 255, 255, 255])
-                # Convert to 0-1 range for trimesh
-                mesh.visual.vertex_colors = [c / 255.0 for c in color]
+
+                # Convert RGBA (0-255) to normalized floats (0-1) for GLTF
+                color_normalized = [c / 255.0 for c in color]
+
+                # Create PBR material for GLTF 2.0 with MeshPhongMaterial compatibility
+                # Configure for DoubleSide rendering (side: THREE.DoubleSide)
+                from trimesh.visual.material import PBRMaterial
+                material = PBRMaterial(
+                    baseColorFactor=color_normalized,  # Base color (RGBA)
+                    metallicFactor=0.0,                # Non-metallic (Phong-like appearance)
+                    roughnessFactor=0.4,               # Medium roughness for Phong shading
+                    doubleSided=True                   # Enable double-sided rendering
+                )
+
+                # Apply material to mesh visual
+                mesh.visual.material = material
+
+                # Also set face colors for fallback compatibility
+                face_colors = np.tile(color[:3], (len(faces), 1))  # RGB for each face
+                mesh.visual.face_colors = face_colors
 
                 meshes.append(mesh)
-                print(f"  Channel {channel_id} mesh: {len(verts)} vertices, {len(faces)} faces")
+                print(f"  Channel {channel_id} mesh: {len(verts)} vertices, {len(faces)} faces, color: {color[:3]}, doubleSided: True")
 
             except RuntimeError as e:
                 print(f"  Channel {channel_id}: marching cubes failed - {e}")
@@ -250,24 +268,10 @@ def convert_nii_to_gltf(case_output: CaseOutput, layer_id: str = "layer1", glb_p
 
         # Check if we have any meshes to export
         if len(meshes) == 0:
-            print(f"Warning: {layer_id} has no non-zero channel data, creating empty GLB file")
+            print(f"Warning: {layer_id} has no non-zero channel data. Skipping GLB generation.")
             TumourData.volume = 0
-            # Create an empty GLTF scene
-            scene = trimesh.Scene()
-            # Export as GLB 2.0 (binary GLTF 2.0)
-            try:
-                export_data = scene.export(file_type='glb')
-                with open(dest, 'wb') as f:
-                    f.write(export_data)
-            except Exception as e:
-                print(f"Warning: GLB export failed: {e}")
-                scene.export(str(dest), file_type='gltf')
-
-            # Update database with file size and path
-            case_output.mask_glb_path = str(dest)
-            case_output.mask_glb_size = dest.stat().st_size
-
-            return dest
+            # Return None to indicate no file was created (no mask data to convert)
+            return None
 
         # Combine all channel meshes into a single scene
         scene = trimesh.Scene()

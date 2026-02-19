@@ -12,7 +12,8 @@
  */
 import { ref, type Ref } from "vue";
 import * as THREE from "three";
-import * as Copper from "copper3d";
+// import * as Copper from "copper3d";
+import * as Copper from "@/ts/index";
 import { ICommXYZ, ISaveSphere } from "@/models";
 
 /**
@@ -175,24 +176,24 @@ export function useRightPanelModels(deps: IModelsDeps): IUseRightPanelModelsRetu
         //     tumourSliceIndex.value = sliceIndex;
         //     resetSliceIndex(sliceIndex);
         // });
-        copperScene.value.loadGltf(tomourUrl, (content) => {
-            // allRightPanelMeshes.value.push(content);
-            // segementTumour3DModel.value = content;
-            // content.position.set(nrrdBias.value.x, nrrdBias.value.y, nrrdBias.value.z);
-            // const tumourMesh = content.children[0] as THREE.Mesh;
-            // tumourMesh.renderOrder = 3;
+        copperScene.value.loadPureGLB(tomourUrl, (content) => {
+            allRightPanelMeshes.value.push(content);
+            segementTumour3DModel.value = content;
+            content.position.set(nrrdBias.value.x, nrrdBias.value.y, nrrdBias.value.z);
+            const tumourMesh = content.children[0] as THREE.Mesh;
+            tumourMesh.renderOrder = 3;
 
-            // const box = new THREE.Box3().setFromObject(content);
-            // const tumourPosition = box.getCenter(new THREE.Vector3());
-            // onLoaded(tumourPosition);
+            const box = new THREE.Box3().setFromObject(content);
+            const tumourPosition = box.getCenter(new THREE.Vector3());
+            onLoaded(tumourPosition);
 
-            // const sliceIndex: ICommXYZ = {
-            //     x: loadNrrdSlices.x.RSAMaxIndex / 2 + tumourPosition.x,
-            //     y: loadNrrdSlices.y.RSAMaxIndex / 2 + tumourPosition.y,
-            //     z: loadNrrdSlices.z.RSAMaxIndex / 2 + tumourPosition.z,
-            // };
-            // tumourSliceIndex.value = sliceIndex;
-            // resetSliceIndex(sliceIndex);
+            const sliceIndex: ICommXYZ = {
+                x: loadNrrdSlices.x.RSAMaxIndex / 2 + tumourPosition.x,
+                y: loadNrrdSlices.y.RSAMaxIndex / 2 + tumourPosition.y,
+                z: loadNrrdSlices.z.RSAMaxIndex / 2 + tumourPosition.z,
+            };
+            tumourSliceIndex.value = sliceIndex;
+            resetSliceIndex(sliceIndex);
         });
     }
 

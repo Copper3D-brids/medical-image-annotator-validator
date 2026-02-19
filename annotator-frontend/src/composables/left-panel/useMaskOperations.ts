@@ -241,7 +241,9 @@ export function useMaskOperations(deps: IMaskOperationsDeps) {
      * @param layerId - Layer to convert ('layer1', 'layer2', or 'layer3'), defaults to 'layer1'
      */
     const onSaveMask = async (flag: boolean, layerId: 'layer1' | 'layer2' | 'layer3' = 'layer1') => {
-        if (flag && nrrdTools.value!.hasLayerData(layerId)) {
+        if (flag) {
+            // Skip expensive hasLayerData check to avoid UI blocking
+            // Backend will handle empty data gracefully
             switchAnimationStatus(
                 loadingContainer.value!,
                 progress.value!,
