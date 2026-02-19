@@ -43,36 +43,6 @@ interface IConfigGUI {
   setEmptyCanvasSize: (axis?: "x" | "y" | "z") => void;
   storeAllImages: (index: number, layer: string) => void;
   drawImageOnEmptyImage: (canvas: HTMLCanvasElement) => void;
-  checkSharedPlaceSlice: (
-    width: number,
-    height: number,
-    imageData: ImageData
-  ) => Uint8ClampedArray;
-  replaceArray: (mainArr: number[] | Uint8ClampedArray,
-    replaceArr: number[] | Uint8ClampedArray) => void;
-  findSliceInSharedPlace: () => ImageData[];
-  sliceArrayH: (arr: Uint8ClampedArray, row: number, col: number) => Uint8ClampedArray[];
-  sliceArrayV: (arr: Uint8ClampedArray, row: number, col: number) => number[][];
-  storeImageToAxis: (
-    index: number,
-    paintedImages: IPaintImages,
-    imageData: ImageData,
-    axis?: "x" | "y" | "z"
-  ) => void;
-  replaceVerticalColPixels: (paintImageArray: IPaintImage[],
-    length: number,
-    ratio: number,
-    markedArr: number[][] | Uint8ClampedArray[],
-    targetWidth: number,
-    convertIndex: number) => void;
-  replaceHorizontalRowPixels: (
-    paintImageArray: IPaintImage[],
-    length: number,
-    ratio: number,
-    markedArr: number[][] | Uint8ClampedArray[],
-    targetWidth: number,
-    convertIndex: number
-  ) => void;
   storeEachLayerImage: (index: number, layer: string) => void;
   storeImageToLayer: (
     index: number,

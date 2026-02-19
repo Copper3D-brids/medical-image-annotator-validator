@@ -130,14 +130,6 @@ export class NrrdTools extends DrawToolCore {
       setEmptyCanvasSize: this.setEmptyCanvasSize,
       storeAllImages: this.storeAllImages,
       drawImageOnEmptyImage: this.drawImageOnEmptyImage,
-      checkSharedPlaceSlice: this.checkSharedPlaceSlice,
-      replaceArray: this.replaceArray,
-      findSliceInSharedPlace: this.findSliceInSharedPlace,
-      sliceArrayH: this.sliceArrayH,
-      sliceArrayV: this.sliceArrayV,
-      storeImageToAxis: this.storeImageToAxis,
-      replaceVerticalColPixels: this.replaceVerticalColPixels,
-      replaceHorizontalRowPixels: this.replaceHorizontalRowPixels,
       storeEachLayerImage: this.storeEachLayerImage,
       storeImageToLayer: this.storeImageToLayer,
       getRestLayer: this.getRestLayer,
@@ -282,20 +274,6 @@ export class NrrdTools extends DrawToolCore {
     this.nrrd_states.nrrd_y_pixel = randomSlice.x.volume.dimensions[1];
     this.nrrd_states.nrrd_z_pixel = randomSlice.x.volume.dimensions[2];
 
-    console.log(this.nrrd_states.nrrd_x_pixel);
-    console.log(this.nrrd_states.nrrd_y_pixel);
-    console.log(this.nrrd_states.nrrd_z_pixel);
-    console.log(this.nrrd_states.nrrd_x_mm);
-    console.log(this.nrrd_states.nrrd_y_mm);
-    console.log(this.nrrd_states.nrrd_z_mm);
-    console.log(randomSlice.x.volume.spacing);
-    console.log(randomSlice.y.volume.spacing);
-    console.log(randomSlice.z.volume.spacing);
-    console.log(randomSlice);
-
-
-
-
     this.nrrd_states.voxelSpacing = randomSlice.x.volume.spacing;
     this.nrrd_states.ratios.x = randomSlice.x.volume.spacing[0];
     this.nrrd_states.ratios.y = randomSlice.x.volume.spacing[1];
@@ -325,19 +303,6 @@ export class NrrdTools extends DrawToolCore {
       item.y.contrastOrder = index;
       item.z.contrastOrder = index;
     });
-
-    this.nrrd_states.sharedPlace.x = this.getSharedPlace(
-      this.nrrd_states.dimensions[0],
-      this.nrrd_states.ratios.x
-    );
-    this.nrrd_states.sharedPlace.y = this.getSharedPlace(
-      this.nrrd_states.dimensions[1],
-      this.nrrd_states.ratios.y
-    );
-    this.nrrd_states.sharedPlace.z = this.getSharedPlace(
-      this.nrrd_states.dimensions[2],
-      this.nrrd_states.ratios.z
-    );
 
     // Phase 3: initPaintImages removed (MaskVolume initialized separately)
     // this.initPaintImages(this.nrrd_states.dimensions);
@@ -460,26 +425,6 @@ export class NrrdTools extends DrawToolCore {
     // mock mouse up
     this.drawCalSphereUp()
 
-  }
-
-  private getSharedPlace(len: number, ratio: number): number[] {
-    let old = -1;
-    let same: number[] = [];
-    let temp = new Set<number>();
-    for (let i = 0; i < len; i++) {
-      const index = Math.floor(i * ratio);
-      if (index === old) {
-        temp.add(i - 1);
-        temp.add(i);
-      } else {
-        old = index;
-      }
-    }
-
-    temp.forEach((value) => {
-      same.push(value);
-    });
-    return same;
   }
 
   /**
@@ -881,9 +826,9 @@ export class NrrdTools extends DrawToolCore {
 
       this.protectedData.canvases.originCanvas =
         this.protectedData.mainPreSlices.canvas;
-      
-      console.log("origin canvas w:",this.protectedData.canvases.originCanvas.width);
-      
+
+      console.log("origin canvas w:", this.protectedData.canvases.originCanvas.width);
+
 
       this.updateOriginAndChangedWH();
     }

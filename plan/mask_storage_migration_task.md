@@ -1106,7 +1106,7 @@ yarn build
 **Last Updated:** 2026-02-18
 **Next Review:** End of each phase
 **Owner:** Development Team
-**Status:** In Progress — Phase 1 Complete (Day 1-5), Phase 2 Complete, Phase 3 Day 12 Complete, Phase 3.5 Complete, Phase 4 Cross-Axis Fix Complete
+**Status:** In Progress — Phase 1 Complete (Day 1-5), Phase 2 Complete, Phase 3 Day 12 Complete, Phase 3.5 Complete, Phase 4 Cross-Axis Fix Complete, Phase 4.1 Flip Removal Complete
 
 ---
 
@@ -1233,3 +1233,64 @@ Two independent bugs:
 ### Verification
 - Build: ✅ Pass (12.77s, zero errors)
 - Tests: ✅ 101/101 pass (2 test files, 0 failures)
+
+---
+
+## Phase 4.1: Remove Mask Flip — Fix Coronal Slice Index Inversion (Day 14.1) ✅
+
+### Bug Report
+After Phase 4 flip fix, coronal view masks appeared at **mirrored slice positions**:
+- Total 448 coronal slices, mask drawn at axial Y≈220 appeared at coronal slice ≈228 (220 + 228 = 448)
+- Sagittal view now correct (Phase 4 dimension fix worked)
+- Same-axis (axial) rendering still correct (double-flip cancels out)
+
+### Root Cause Analysis
+Phase 4 added `applyMaskFlipForAxis()` to three locations:
+1. **Storage** (`drawImageOnEmptyImage`): `scale(1,-1)` flips Y when writing canvas → emptyCanvas → MaskVolume
+2. **Same-axis re-render** (`redrawPreviousImageToLayerCtx`): flips when reading MaskVolume → layer canvas
+3. **Cross-axis render** (`renderSliceToCanvas`): flips when rendering MaskVolume slice → layer canvas
+
+The **double-flip** (store flipped + render flipped) makes same-axis viewing look correct.
+But cross-axis viewing exposes the inverted Y: the Three.js slider at coronal position 220
+reads volume Y=220, but the mask was stored at volume Y=228 (448−220) due to the storage flip.
+
+**Key insight**: The layer canvas coordinate system matches the Three.js source coordinate system.
+`flipDisplayImageByAxis()` only affects the CT display canvas visually — it does NOT change
+the mapping between screen positions and volume coordinates. Users draw at screen positions
+on the layer canvas, which directly correspond to source coordinates. Therefore, NO flip
+should be applied during mask storage or rendering.
+
+### Fix Applied
+Removed `applyMaskFlipForAxis()` from all three locations (storage, re-render, cross-axis render):
+
+- [x] **Task 14.1.1:** Remove flip from `drawImageOnEmptyImage()` (DrawToolCore.ts) ✅
+  - Removed `ctx.save()`, `applyMaskFlipForAxis()`, `ctx.restore()` wrapper
+  - Layer canvas screen coordinates already match Three.js source coordinate system
+
+- [x] **Task 14.1.2:** Remove flip from `redrawPreviousImageToLayerCtx()` (DrawToolCore.ts) ✅
+  - Removed `ctx.save()`, `applyMaskFlipForAxis()`, `ctx.restore()` wrapper
+  - MaskVolume stores in source coordinates matching layer canvas convention
+
+- [x] **Task 14.1.3:** Remove flip from `renderSliceToCanvas()` (CommToolsData.ts) ✅
+  - Removed `targetCtx.save()`, `applyMaskFlipForAxis()`, `targetCtx.restore()` wrapper
+  - Applying display flip here would invert cross-axis slice indices
+
+### Why All Three Must Be Consistent
+If `renderSliceToCanvas` flips but `drawImageOnEmptyImage` doesn't (or vice versa), data
+corruption occurs: old mask data rendered with flip to layer canvas → stored without flip →
+mask position migrates each edit cycle. Either all flip or none flip. Since the coordinate
+system is already correct without flipping, none is the right choice.
+
+### Files Modified
+- `DrawToolCore.ts`: `drawImageOnEmptyImage()` + `redrawPreviousImageToLayerCtx()` — removed flip
+- `CommToolsData.ts`: `renderSliceToCanvas()` — removed flip
+
+### Note
+- `applyMaskFlipForAxis()` method itself is kept (not deleted) for potential future use
+- Sagittal dimension fix (Phase 4 Tasks 14.1-14.3) is independent and remains correct
+- Known limitation: cross-axis mask content may appear vertically flipped relative to CT display (pre-Phase 4 behavior)
+
+### Verification
+- Build: ✅ Pass (15.56s, zero errors)
+- Tests: ✅ 101/101 pass (2 test files, 0 failures)
+- User confirmed: masks now appear at correct coronal/sagittal slice positions ✅

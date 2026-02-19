@@ -204,7 +204,6 @@ interface INrrdStates {
   dimensions: number[];
   loadMaskJson: boolean;
   ratios: ICommXYZ;
-  sharedPlace: ICommXYZ;
   contrastNum: number;
   showContrast: boolean;
   enableCursorChoose: boolean;

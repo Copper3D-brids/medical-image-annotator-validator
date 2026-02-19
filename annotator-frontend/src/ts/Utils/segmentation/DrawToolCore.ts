@@ -3,7 +3,6 @@ import {
   IDrawingEvents,
   IContrastEvents,
   IDrawOpts,
-  IPaintImage,
   IPaintImages,
   ICommXY,
   ICommXYZ,
@@ -1247,55 +1246,6 @@ export class DrawToolCore extends CommToolsData {
 
   storeEachLayerImage(index: number, layer: string) {
     this.imageStoreHelper.storeEachLayerImage(index, layer);
-  }
-
-  checkSharedPlaceSlice(width: number, height: number, imageData: ImageData) {
-    return this.imageStoreHelper.checkSharedPlaceSlice(width, height, imageData);
-  }
-
-  replaceArray(
-    mainArr: number[] | Uint8ClampedArray,
-    replaceArr: number[] | Uint8ClampedArray
-  ) {
-    this.imageStoreHelper.replaceArray(mainArr, replaceArr);
-  }
-
-  findSliceInSharedPlace() {
-    return this.imageStoreHelper.findSliceInSharedPlace();
-  }
-
-  sliceArrayH(arr: Uint8ClampedArray, row: number, col: number) {
-    return this.imageStoreHelper.sliceArrayH(arr, row, col);
-  }
-
-  sliceArrayV(arr: Uint8ClampedArray, row: number, col: number) {
-    return this.imageStoreHelper.sliceArrayV(arr, row, col);
-  }
-
-  replaceVerticalColPixels(
-    paintImageArray: IPaintImage[],
-    length: number,
-    ratio: number,
-    markedArr: number[][] | Uint8ClampedArray[],
-    targetWidth: number,
-    convertIndex: number
-  ) {
-    this.imageStoreHelper.replaceVerticalColPixels(
-      paintImageArray, length, ratio, markedArr, targetWidth, convertIndex
-    );
-  }
-
-  replaceHorizontalRowPixels(
-    paintImageArray: IPaintImage[],
-    length: number,
-    ratio: number,
-    markedArr: number[][] | Uint8ClampedArray[],
-    targetWidth: number,
-    convertIndex: number
-  ) {
-    this.imageStoreHelper.replaceHorizontalRowPixels(
-      paintImageArray, length, ratio, markedArr, targetWidth, convertIndex
-    );
   }
 
   /******************************** Utils gui related functions (delegated to ContrastTool) ***************************************/

@@ -43,7 +43,6 @@ export class CommToolsData {
     dimensions: [],
     loadMaskJson: false,
     ratios: { x: 1, y: 1, z: 1 },
-    sharedPlace: { x: [-1], y: [-1], z: [-1] },
     contrastNum: 0,
 
     showContrast: false,
