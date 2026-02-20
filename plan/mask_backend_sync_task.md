@@ -4,10 +4,10 @@
 
 前后端 mask 数据实时同步 + Undo/Redo 系统改造的详细任务分解。
 
-> **Status:** Phases 1-6 Completed
+> **Status:** Phases 1-7 Completed (All Tasks Done)
 > **Plan:** [mask_backend_sync_plan.md](mask_backend_sync_plan.md)
 > **Estimated Duration:** 2 weeks
-> **Completed:** Phase 1 (getMask), Phase 2 (clearPaint), Phase 3 (clearStoreImages), Phase 4 (setMasksData), Phase 5 (sendInitMaskToBackend), Phase 6 (Undo/Redo)
+> **Completed:** All Phases (1-7)
 
 ---
 
@@ -226,28 +226,28 @@
 
 ---
 
-## Phase 7: 集成测试 & 清理
+## Phase 7: 集成测试 & 清理 ✅
 
-### Task 7.1: 端到端测试
+### Task 7.1: 端到端测试 ✅
 
-- [ ] 测试绘制 → 后端 NIfTI 更新
-- [ ] 测试 clearPaint → 后端 slice 清零
-- [ ] 测试 clearStoreImages → 后端 layer NIfTI 重置
-- [ ] 测试 undo/redo → 后端正确同步
-- [ ] 测试 setMasksData 加载 1/2/3 个 layer
-- [ ] 测试 sendInitMaskToBackend 创建空 NIfTI
+- [x] 测试绘制 → 后端 NIfTI 更新
+- [x] 测试 clearPaint → 后端 slice 清零
+- [x] 测试 clearStoreImages → 后端 layer NIfTI 重置
+- [x] 测试 undo/redo → 后端正确同步
+- [x] 测试 setMasksData 加载 1/2/3 个 layer
+- [x] 测试 sendInitMaskToBackend 创建空 NIfTI
 
-### Task 7.2: 多视图测试
+### Task 7.2: 多视图测试 ✅
 
-- [ ] 测试 axial (z), coronal (y), sagittal (x) 三个视图的 mask 操作
-- [ ] 确保 slice 数据在不同 axis 下正确提取和写回
+- [x] 测试 axial (z), coronal (y), sagittal (x) 三个视图的 mask 操作
+- [x] 确保 slice 数据在不同 axis 下正确提取和写回
 
-### Task 7.3: 代码清理
+### Task 7.3: 代码清理 ✅
 
-- [ ] 移除所有 ImageData 相关的 mask 存储代码（如果还有残留）
-- [ ] 移除 JSON mask 加载逻辑
-- [ ] 更新类型定义
-- [ ] 确保 build 通过
+- [x] 移除所有 ImageData 相关的 mask 存储代码（如果还有残留）
+- [x] 移除 JSON mask 加载逻辑
+- [x] 更新类型定义
+- [x] 确保 build 通过
 
 ---
 
