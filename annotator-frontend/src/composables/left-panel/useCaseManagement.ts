@@ -10,7 +10,8 @@
  * @module composables/left-panel/useCaseManagement
  */
 import { ref, type Ref } from "vue";
-import * as Copper from "copper3d";
+// import * as Copper from "copper3d";
+import * as Copper from "@/ts/index"
 import {
     IDetails,
     ICaseUrls,
@@ -131,15 +132,15 @@ export function useCaseManagement(deps: ICaseManagementDeps) {
             regiterUrls = {
                 nrrdUrls: [],
                 jsonUrl:
-                    Number(currentCaseDetail.value.output.mask_json_size) > 0
-                        ? currentCaseDetail.value.output.mask_json_path
+                    Number(currentCaseDetail.value.output.mask_meta_json_size) > 0
+                        ? currentCaseDetail.value.output.mask_meta_json_path
                         : "",
             };
             originUrls = {
                 nrrdUrls: [],
                 jsonUrl:
-                    Number(currentCaseDetail.value.output.mask_json_size) > 0
-                        ? currentCaseDetail.value.output.mask_json_path
+                    Number(currentCaseDetail.value.output.mask_meta_json_size) > 0
+                        ? currentCaseDetail.value.output.mask_meta_json_path
                         : "",
             };
 

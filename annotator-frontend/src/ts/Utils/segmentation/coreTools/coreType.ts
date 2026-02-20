@@ -179,6 +179,7 @@ interface IGUIStates {
 interface IKeyBoardSettings {
   draw: string;
   undo: string;
+  redo: string;
   contrast: string[];
   crosshair: string;
   mouseWheel: "Scroll:Zoom" | "Scroll:Slice";
@@ -232,9 +233,6 @@ interface INrrdStates {
   previousPanelT: number;
   switchSliceFlag: boolean;
   layers: ["layer1", "layer2", "layer3"];
-
-  configKeyBoard: boolean;
-  keyboardSettings: IKeyBoardSettings;
 
   getMask: (
     sliceData: Uint8Array,
@@ -423,5 +421,6 @@ export {
   IMaskData,
   INewMaskData,
   ICursorPage,
-  IGuiParameterSettings
+  IGuiParameterSettings,
+  IKeyBoardSettings
 };

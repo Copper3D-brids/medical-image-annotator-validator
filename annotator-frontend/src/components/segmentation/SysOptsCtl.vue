@@ -41,12 +41,25 @@
         <h4 class="pb-3">
           {{ d.label }}
         </h4>
-        <div class="w-33">
-          <v-text-field 
-            v-model="keyboardSettings[d.type]"  
+        <div class="w-50 d-flex">
+          <v-btn
+            :color="contrastEnabled ? 'warning' : 'success'"
             variant="outlined"
+            size="small"
+            class="mr-2 align-self-start mt-4"
+            rounded="md"
+            :style="{ visibility: d.type === 'contrast' ? 'visible' : 'hidden' }"
+            @click="toggleContrast"
+          >
+            {{ contrastEnabled ? 'Disable' : 'Enable' }}
+          </v-btn>
+          <v-text-field
+            v-model="keyboardSettings[d.type]"
+            variant="outlined"
+            class="flex-grow-1"
             @keydown="handleKeyDown($event, d.type)"
           ></v-text-field>
+          
         </div>
       </div>
     </div>
@@ -88,7 +101,7 @@
  * @emits updateDebug - Emitted when debug mode is toggled
  * @emits updateSticky - Emitted when sticky mode is toggled
  */
-import * as Copper from "copper3d";
+import * as Copper from "@/ts/index";
 import Switcher from "@/components/common/Switcher.vue";
 import { ref, onMounted, onUnmounted, watch, computed } from "vue";
 import Dialog from "@/components/common/Dialog.vue";
@@ -127,6 +140,9 @@ const switchDebugLabel = ref("off");
 /** Label for sticky mode switch */
 const switchStickyLabel = ref("on");
 
+/** Whether the contrast shortcut (Ctrl/Meta) is currently enabled. */
+const contrastEnabled = ref(true);
+
 /**
  * Local copy of keyboard settings for editing in dialog.
  * Changes are only applied when user clicks Save.
@@ -134,6 +150,7 @@ const switchStickyLabel = ref("on");
 const keyboardSettings = ref<IKeyboardSettings>({
   draw: '',
   undo: "",
+  redo: "",
   contrast: [],
   crosshair: "",
   mouseWheel: "",
@@ -159,6 +176,10 @@ const settingsData = ref([
     type: "undo",
   },
   {
+    label: "Key for Redo:",
+    type: "redo",
+  },
+  {
     label: "Key for Contrast:",
     type: "contrast",
   },
@@ -174,8 +195,10 @@ const settingsData = ref([
  */
 watch(
   ()=>props.nrrdTools,
-  ()=>{
-    keyboardSettings.value = {...props.nrrdTools!.nrrd_states.keyboardSettings};
+  (tool)=>{
+    if (!tool) return;
+    keyboardSettings.value = tool.getKeyboardSettings();
+    contrastEnabled.value = tool.isContrastShortcutEnabled();
   });
 
 /**
@@ -219,26 +242,31 @@ function toggleSticky(value: boolean) {
 function handleKeyDown(event: KeyboardEvent, type: string) {
   switch(type) {
     case "draw":
-      setTimeout(()=>{
-        keyboardSettings.value.draw = event.key;
-      },10);
+      setTimeout(()=>{ keyboardSettings.value.draw = event.key; }, 10);
       break;
     case "undo":
-      setTimeout(()=>{
-        keyboardSettings.value.undo = event.key;
-      },10);
+      setTimeout(()=>{ keyboardSettings.value.undo = event.key; }, 10);
+      break;
+    case "redo":
+      setTimeout(()=>{ keyboardSettings.value.redo = event.key; }, 10);
       break;
     case "contrast":
-      setTimeout(()=>{
-        keyboardSettings.value.contrast = [event.key];
-      },10);
+      setTimeout(()=>{ keyboardSettings.value.contrast = [event.key]; }, 10);
       break;
     case "crosshair":
-      setTimeout(()=>{
-        keyboardSettings.value.crosshair = event.key;
-      },10);
+      setTimeout(()=>{ keyboardSettings.value.crosshair = event.key; }, 10);
       break;
   }
+}
+
+/**
+ * Toggles the contrast shortcut (Ctrl/Meta key) on or off.
+ * The button label and color reflect the current state.
+ */
+function toggleContrast() {
+  const newState = !contrastEnabled.value;
+  contrastEnabled.value = newState;
+  props.nrrdTools?.setContrastShortcutEnabled(newState);
 }
 
 /**
@@ -247,7 +275,7 @@ function handleKeyDown(event: KeyboardEvent, type: string) {
  * keyboard shortcuts from triggering during configuration.
  */
 function handleDialogOpen() {
-  props.nrrdTools!.nrrd_states.configKeyBoard = true;
+  props.nrrdTools!.enterKeyboardConfig();
 }
 
 /**
@@ -255,19 +283,18 @@ function handleDialogOpen() {
  * Resets local keyboard settings to original values from NrrdTools.
  */
 function handleDialogCancel() {
-  props.nrrdTools!.nrrd_states.configKeyBoard = false;
-  keyboardSettings.value = {...props.nrrdTools!.nrrd_states.keyboardSettings};
-  
+  props.nrrdTools!.exitKeyboardConfig();
+  keyboardSettings.value = props.nrrdTools!.getKeyboardSettings();
 }
 
 /**
  * Handles dialog save event.
- * Applies local keyboard settings to NrrdTools and updates mouse wheel event.
+ * Applies local keyboard settings to NrrdTools.
+ * mouseWheel re-binding is handled automatically inside setKeyboardSettings.
  */
 function handleDialogSave() {
-  props.nrrdTools!.nrrd_states.configKeyBoard = false;
-  props.nrrdTools!.nrrd_states.keyboardSettings = {...keyboardSettings.value as any};
-  props.nrrdTools!.updateMouseWheelEvent();
+  props.nrrdTools!.exitKeyboardConfig();
+  props.nrrdTools!.setKeyboardSettings(keyboardSettings.value as any);
 }
 
 </script>

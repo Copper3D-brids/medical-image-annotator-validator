@@ -28,6 +28,7 @@ export interface IAuth {
 export interface IKeyboardSettings {
     draw: string;
     undo: string;
+    redo: string;
     contrast: string[];
     crosshair: string;
     mouseWheel: "Scroll:Zoom" | "Scroll:Slice" | string;

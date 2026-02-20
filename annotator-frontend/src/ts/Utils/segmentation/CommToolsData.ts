@@ -8,7 +8,8 @@ import {
   IPaintImages,
   IConvertObjType,
   ICommXYZ,
-  INewMaskData
+  INewMaskData,
+  IKeyBoardSettings
 } from "./coreTools/coreType";
 import { MaskVolume } from "./core";
 import { switchPencilIcon } from "../utils";
@@ -21,6 +22,19 @@ export class CommToolsData {
   private _reusableSliceBuffer: ImageData | null = null;
   private _reusableBufferWidth: number = 0;
   private _reusableBufferHeight: number = 0;
+
+  /** Whether the keyboard-config dialog is open (suppresses all shortcuts). */
+  protected _configKeyBoard: boolean = false;
+
+  /** Active keyboard shortcut bindings. */
+  protected _keyboardSettings: IKeyBoardSettings = {
+    draw: "Shift",
+    undo: "z",
+    redo: "y",
+    contrast: ["Control", "Meta"],
+    crosshair: "s",
+    mouseWheel: "Scroll:Zoom",
+  };
 
   nrrd_states: INrrdStates = {
     originWidth: 0,
@@ -72,15 +86,6 @@ export class CommToolsData {
     previousPanelT: -99999,
     switchSliceFlag: false,
     layers: ["layer1", "layer2", "layer3"],
-
-    configKeyBoard: false,
-    keyboardSettings: {
-      draw: "Shift",
-      undo: "z",
-      contrast: ["Control", "Meta"],
-      crosshair: "s",
-      mouseWheel: "Scroll:Zoom",
-    },
 
     getMask: (
       sliceData: Uint8Array,

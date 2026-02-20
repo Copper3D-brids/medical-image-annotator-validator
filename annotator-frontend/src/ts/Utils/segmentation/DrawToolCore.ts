@@ -162,36 +162,38 @@ export class DrawToolCore extends CommToolsData {
       }
     });
 
-    // Configure keyboard settings from nrrd_states
-    this.eventRouter.setKeyboardSettings(this.nrrd_states.keyboardSettings);
+    // Configure keyboard settings from class field
+    this.eventRouter.setKeyboardSettings(this._keyboardSettings);
 
     // Track undo flag for Ctrl+Z handling
     let undoFlag = false;
 
     // Register keyboard handlers with EventRouter
     this.eventRouter.setKeydownHandler((ev: KeyboardEvent) => {
-      if (this.nrrd_states.configKeyBoard) return;
+      if (this._configKeyBoard) return;
 
       // Handle undo (Ctrl+Z)
-      if ((ev.ctrlKey || ev.metaKey) && ev.key === this.nrrd_states.keyboardSettings.undo) {
+      if ((ev.ctrlKey || ev.metaKey) && ev.key === this._keyboardSettings.undo) {
         undoFlag = true;
         this.undoLastPainting();
       }
 
-      // Handle redo (Ctrl+Y or Ctrl+Shift+Z)
-      if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'y' || (ev.shiftKey && ev.key === 'Z'))) {
+      // Handle redo (Ctrl+<redo key> or Ctrl+Shift+<undo key>)
+      const redoKey = this._keyboardSettings.redo;
+      const undoKeyUpper = this._keyboardSettings.undo.toUpperCase();
+      if ((ev.ctrlKey || ev.metaKey) && (ev.key === redoKey || (ev.shiftKey && ev.key === undoKeyUpper))) {
         this.redoLastPainting();
       }
 
       // Handle crosshair toggle
-      if (ev.key === this.nrrd_states.keyboardSettings.crosshair) {
+      if (ev.key === this._keyboardSettings.crosshair) {
         if (!this.gui_states.sphere && !this.gui_states.calculator) {
           this.eventRouter?.toggleCrosshair();
         }
       }
 
       // Handle draw mode (Shift key) - EventRouter already tracks this
-      if (ev.key === this.nrrd_states.keyboardSettings.draw && !this.gui_states.sphere && !this.gui_states.calculator) {
+      if (ev.key === this._keyboardSettings.draw && !this.gui_states.sphere && !this.gui_states.calculator) {
         if (this.protectedData.Is_Ctrl_Pressed) {
           return; // Ctrl takes priority
         }
@@ -200,15 +202,17 @@ export class DrawToolCore extends CommToolsData {
     });
 
     this.eventRouter.setKeyupHandler((ev: KeyboardEvent) => {
-      if (this.nrrd_states.configKeyBoard) return;
+      if (this._configKeyBoard) return;
 
       // Handle Ctrl key release (contrast mode toggle)
-      if (this.nrrd_states.keyboardSettings.contrast.includes(ev.key)) {
+      if (this._keyboardSettings.contrast.includes(ev.key)) {
         if (undoFlag) {
           this.gui_states.readyToUpdate = true;
           undoFlag = false;
           return;
         }
+        // Skip mode toggle when contrast shortcut is disabled
+        if (!this.eventRouter?.isContrastEnabled()) return;
         // Toggle contrast mode manually since it's on keyup
         if (this.eventRouter?.getMode() !== 'contrast') {
           this.eventRouter?.setMode('contrast');
@@ -392,7 +396,7 @@ export class DrawToolCore extends CommToolsData {
       );
 
     // let a global variable to store the wheel move event
-    if (this.nrrd_states.keyboardSettings.mouseWheel === "Scroll:Zoom") {
+    if (this._keyboardSettings.mouseWheel === "Scroll:Zoom") {
       this.drawingPrameters.handleMouseZoomSliceWheel = this.configMouseZoomWheel();
     } else {
       this.drawingPrameters.handleMouseZoomSliceWheel = this.configMouseSliceWheel() as any;
@@ -1350,11 +1354,11 @@ export class DrawToolCore extends CommToolsData {
     this.contrastTool.removeContrastDragMode();
   };
 
-  updateSlicesContrast(value: number, flag: string) {
+  updateSlicesContrast = (value: number, flag: string) => {
     this.contrastTool.updateSlicesContrast(value, flag);
-  }
+  };
 
-  repraintCurrentContrastSlice() {
+  repraintCurrentContrastSlice = () => {
     this.contrastTool.repraintCurrentContrastSlice();
-  }
+  };
 }

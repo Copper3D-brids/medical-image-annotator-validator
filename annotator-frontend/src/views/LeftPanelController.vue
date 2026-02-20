@@ -215,6 +215,9 @@ onUnmounted(() => {
 // Event handlers
 const onFinishedCopperInit = (copperInitData: ILeftCoreCopperInit) => {
   nrrdTools.value = copperInitData.nrrdTools;
+  // disable contrast drag
+  nrrdTools.value.setContrastShortcutEnabled(false)
+  nrrdTools.value.setKeyboardSettings({ mouseWheel: 'Scroll:Slice' });
 };
 
 const onOpenDialog = (flag: boolean) => { dialog.value = flag; };

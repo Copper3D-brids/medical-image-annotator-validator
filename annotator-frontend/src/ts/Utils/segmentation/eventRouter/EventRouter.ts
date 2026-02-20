@@ -29,6 +29,7 @@ import type {
 const DEFAULT_KEYBOARD_SETTINGS: KeyboardSettings = {
     draw: 'Shift',
     undo: 'z',
+    redo: 'y',
     contrast: ['Control', 'Meta'],
     crosshair: 'c',
     mouseWheel: 'Scroll:Zoom'
@@ -57,6 +58,9 @@ export class EventRouter {
 
     // === Configuration ===
     private keyboardSettings: KeyboardSettings = DEFAULT_KEYBOARD_SETTINGS;
+
+    /** When false, contrast key (Ctrl/Meta) is ignored for mode switching. */
+    private contrastEnabled: boolean = true;
 
     // === Callbacks ===
     private onModeChange?: ModeChangeCallback;
@@ -286,6 +290,31 @@ export class EventRouter {
         return { ...this.keyboardSettings };
     }
 
+    /**
+     * Enable or disable the contrast shortcut (Ctrl/Meta key).
+     *
+     * When disabled:
+     * - `ctrlHeld` state is never set to true
+     * - The mode will not be changed to `'contrast'` via key events
+     * - If the mode is currently `'contrast'` it is reset to `'idle'`
+     *
+     * The external keydown/keyup handlers are still called regardless
+     * of this flag so other Ctrl-based shortcuts (e.g. Ctrl+Z undo)
+     * continue to work normally.
+     */
+    setContrastEnabled(enabled: boolean): void {
+        this.contrastEnabled = enabled;
+        if (!enabled && this.mode === 'contrast') {
+            this.state.ctrlHeld = false;
+            this.setMode('idle');
+        }
+    }
+
+    /** Whether the contrast shortcut is currently enabled. */
+    isContrastEnabled(): boolean {
+        return this.contrastEnabled;
+    }
+
     // ========================================
     // Handler Registration
     // ========================================
@@ -352,7 +381,7 @@ export class EventRouter {
             }
         }
 
-        if (this.keyboardSettings.contrast.includes(ev.key)) {
+        if (this.contrastEnabled && this.keyboardSettings.contrast.includes(ev.key)) {
             this.state.ctrlHeld = true;
         }
 
@@ -373,9 +402,11 @@ export class EventRouter {
 
         if (this.keyboardSettings.contrast.includes(ev.key)) {
             this.state.ctrlHeld = false;
-            if (this.mode === 'contrast') {
-                this.setMode('idle');
-            }
+            // Do NOT auto-exit contrast mode here. Contrast is a toggle
+            // (press Ctrl once → enter, press again → exit), not a hold.
+            // DrawToolCore's keyupHandler manages the toggle exclusively.
+            // Auto-exiting here would conflict with it (EventRouter exits,
+            // then DrawToolCore immediately re-enters → stuck in contrast).
         }
 
         // Route to external handler

@@ -72,6 +72,7 @@ export interface EventRouterConfig {
 export interface KeyboardSettings {
     draw: string;           // Key to trigger draw mode (default: 'Shift')
     undo: string;           // Key for undo (default: 'z')
+    redo: string;           // Key for redo (default: 'y')
     contrast: string[];     // Keys for contrast mode (default: ['Control', 'Meta'])
     crosshair: string;      // Key to toggle crosshair (default: 'c')
     mouseWheel: 'Scroll:Zoom' | 'Scroll:Slice';

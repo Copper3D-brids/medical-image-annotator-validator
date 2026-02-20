@@ -14,7 +14,8 @@ import {
   ISkipSlicesDictType,
   IMaskData,
   IDragOpts,
-  IGuiParameterSettings
+  IGuiParameterSettings,
+  IKeyBoardSettings
 } from "./coreTools/coreType";
 import { DragOperator } from "./DragOperator";
 import { DrawToolCore } from "./DrawToolCore";
@@ -260,6 +261,155 @@ export class NrrdTools extends DrawToolCore {
       return false;
     }
     return volume.hasData();
+  }
+
+  // ── Keyboard & History API ──────────────────────────────────────────────
+
+  /**
+   * Programmatically trigger an undo operation.
+   *
+   * Equivalent to pressing Ctrl+Z. Reverts the most recent drawing stroke
+   * on the currently active layer and syncs the result to the backend via
+   * the `getMask` callback.
+   *
+   * @example
+   * ```ts
+   * undoBtn.addEventListener('click', () => nrrdTools.undo());
+   * ```
+   */
+  undo(): void {
+    this.undoLastPainting();
+  }
+
+  /**
+   * Programmatically trigger a redo operation.
+   *
+   * Equivalent to pressing Ctrl+Y. Re-applies the most recently undone
+   * drawing stroke on the currently active layer and syncs the result to
+   * the backend via the `getMask` callback.
+   *
+   * @example
+   * ```ts
+   * redoBtn.addEventListener('click', () => nrrdTools.redo());
+   * ```
+   */
+  redo(): void {
+    this.redoLastPainting();
+  }
+
+  /**
+   * Enter keyboard-configuration mode.
+   *
+   * While active, every keydown/keyup handler in DrawToolCore and DragOperator
+   * is suppressed so the user can press arbitrary keys in the settings dialog
+   * without accidentally triggering drawing, undo, or contrast shortcuts.
+   *
+   * Always pair with {@link exitKeyboardConfig} when the dialog closes.
+   *
+   * @example
+   * ```ts
+   * dialog.addEventListener('open', () => nrrdTools.enterKeyboardConfig());
+   * ```
+   */
+  enterKeyboardConfig(): void {
+    this._configKeyBoard = true;
+  }
+
+  /**
+   * Exit keyboard-configuration mode and resume normal shortcut handling.
+   *
+   * @example
+   * ```ts
+   * dialog.addEventListener('close', () => nrrdTools.exitKeyboardConfig());
+   * ```
+   */
+  exitKeyboardConfig(): void {
+    this._configKeyBoard = false;
+  }
+
+  /**
+   * Enable or disable the contrast window/level shortcut (Ctrl/Meta key).
+   *
+   * When disabled:
+   * - Holding Ctrl no longer enters contrast mode
+   * - If contrast mode is currently active it is immediately exited
+   * - All other Ctrl-based shortcuts (Ctrl+Z undo, Ctrl+Y redo) are
+   *   unaffected because they are checked in the keydown handler before
+   *   the contrast guard runs
+   *
+   * @param enabled - Pass `false` to disable, `true` to re-enable.
+   *
+   * @example
+   * ```ts
+   * // Disable contrast when sphere tool is active
+   * nrrdTools.setContrastShortcutEnabled(false);
+   *
+   * // Re-enable when returning to draw mode
+   * nrrdTools.setContrastShortcutEnabled(true);
+   * ```
+   */
+  setContrastShortcutEnabled(enabled: boolean): void {
+    this.eventRouter?.setContrastEnabled(enabled);
+  }
+
+  /**
+   * Returns whether the contrast shortcut is currently enabled.
+   */
+  isContrastShortcutEnabled(): boolean {
+    return this.eventRouter?.isContrastEnabled() ?? true;
+  }
+
+  /**
+   * Update keyboard shortcut bindings.
+   *
+   * Synchronises both the internal class field (read by every keydown handler)
+   * and the EventRouter's internal copy (used for modifier-key mode tracking)
+   * so the two never drift apart.  If `mouseWheel` is changed the wheel event
+   * listener is automatically re-bound via {@link updateMouseWheelEvent}.
+   *
+   * Only the fields you supply are updated; omitted fields keep their
+   * current values.
+   *
+   * @param settings - Partial keyboard settings to override.
+   *
+   * @example
+   * ```ts
+   * nrrdTools.setKeyboardSettings({
+   *   undo: 'z',
+   *   redo: 'y',
+   *   crosshair: 'c',
+   *   mouseWheel: 'Scroll:Slice',
+   * });
+   * ```
+   */
+  setKeyboardSettings(settings: Partial<IKeyBoardSettings>): void {
+    const mouseWheelChanged = settings.mouseWheel !== undefined
+      && settings.mouseWheel !== this._keyboardSettings.mouseWheel;
+
+    Object.assign(this._keyboardSettings, settings);
+    this.eventRouter?.setKeyboardSettings(settings);
+
+    if (mouseWheelChanged) {
+      this.updateMouseWheelEvent();
+    }
+  }
+
+  /**
+   * Get a snapshot of the current keyboard shortcut bindings.
+   *
+   * Returns a shallow copy so callers cannot accidentally mutate internal
+   * state. To update settings use {@link setKeyboardSettings} instead.
+   *
+   * @returns Current keyboard settings.
+   *
+   * @example
+   * ```ts
+   * const { undo, redo } = nrrdTools.getKeyboardSettings();
+   * console.log(`Undo: Ctrl+${undo}, Redo: Ctrl+${redo}`);
+   * ```
+   */
+  getKeyboardSettings(): IKeyBoardSettings {
+    return { ...this._keyboardSettings };
   }
 
   /**
@@ -1284,7 +1434,7 @@ export class NrrdTools extends DrawToolCore {
       "wheel",
       this.drawingPrameters.handleMouseZoomSliceWheel
     );
-    switch (this.nrrd_states.keyboardSettings.mouseWheel) {
+    switch (this._keyboardSettings.mouseWheel) {
       case "Scroll:Zoom":
         this.drawingPrameters.handleMouseZoomSliceWheel = this.configMouseZoomWheel();
         break;

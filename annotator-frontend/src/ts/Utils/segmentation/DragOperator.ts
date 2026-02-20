@@ -213,36 +213,8 @@ export class DragOperator {
     };
 
     this.configDragMode();
-
-    // If EventRouter is available, mode changes are handled via onModeChange callback in DrawToolCore.
-    // Otherwise, fall back to direct keyboard listeners for backwards compatibility.
-    if (!this.eventRouter) {
-      // Legacy mode: direct keyboard event listeners
-      this.container.addEventListener("keydown", (ev: KeyboardEvent) => {
-        if (this.nrrd_states.configKeyBoard) return;
-
-        if (ev.key === this.nrrd_states.keyboardSettings.draw) {
-          this.removeDragMode();
-        }
-      });
-      this.container.addEventListener("keyup", (ev: KeyboardEvent) => {
-        if (this.nrrd_states.configKeyBoard) return;
-
-        if (this.nrrd_states.keyboardSettings.contrast.includes(ev.key)) {
-          if (this.protectedData.Is_Ctrl_Pressed) {
-            this.removeDragMode();
-          } else {
-            this.configDragMode();
-          }
-        }
-        if (ev.key === this.nrrd_states.keyboardSettings.draw && !this.gui_states.sphere) {
-          if (this.protectedData.Is_Ctrl_Pressed) {
-            return
-          }
-          this.configDragMode();
-        }
-      });
-    }
+    // Keyboard handling is fully managed by EventRouter (injected via setEventRouter).
+    // Mode changes (draw/contrast) are routed through the onModeChange callback in DrawToolCore.
   }
 
   updateIndex(move: number) {
