@@ -396,6 +396,13 @@ export class DrawToolCore extends CommToolsData {
       );
 
     // let a global variable to store the wheel move event
+
+    // Remove existing listener before creating a new one to prevent leaks
+    this.protectedData.canvases.drawingCanvas.removeEventListener(
+      "wheel",
+      this.drawingPrameters.handleMouseZoomSliceWheel
+    );
+
     if (this._keyboardSettings.mouseWheel === "Scroll:Zoom") {
       this.drawingPrameters.handleMouseZoomSliceWheel = this.configMouseZoomWheel();
     } else {
