@@ -56,12 +56,9 @@ export class ImageStoreHelper extends BaseTool {
    * Get the canvas element for a specific layer.
    */
   private getCanvasForLayer(layer: string): HTMLCanvasElement {
-    switch (layer) {
-      case "layer1": return this.ctx.protectedData.canvases.drawingCanvasLayerOne;
-      case "layer2": return this.ctx.protectedData.canvases.drawingCanvasLayerTwo;
-      case "layer3": return this.ctx.protectedData.canvases.drawingCanvasLayerThree;
-      default: return this.ctx.protectedData.canvases.drawingCanvasLayerMaster;
-    }
+    const target = this.ctx.protectedData.layerTargets.get(layer);
+    if (target) return target.canvas;
+    return this.ctx.protectedData.canvases.drawingCanvasLayerMaster;
   }
 
   // ===== Store Image To Axis =====

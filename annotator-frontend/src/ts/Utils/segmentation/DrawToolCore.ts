@@ -69,9 +69,9 @@ export class DrawToolCore extends CommToolsData {
   // need to return to parent
   start: () => void = () => { };
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, options?: { layers?: string[] }) {
     const mainAreaContainer = document.createElement("div");
-    super(container, mainAreaContainer);
+    super(container, mainAreaContainer, options);
     this.container = container;
     this.mainAreaContainer = mainAreaContainer;
 
@@ -240,27 +240,14 @@ export class DrawToolCore extends CommToolsData {
   }
 
   private setCurrentLayer() {
-    let ctx: CanvasRenderingContext2D;
-    let canvas: HTMLCanvasElement;
-    switch (this.gui_states.layer) {
-      case "layer1":
-        ctx = this.protectedData.ctxes.drawingLayerOneCtx;
-        canvas = this.protectedData.canvases.drawingCanvasLayerOne;
-        break;
-      case "layer2":
-        ctx = this.protectedData.ctxes.drawingLayerTwoCtx;
-        canvas = this.protectedData.canvases.drawingCanvasLayerTwo;
-        break;
-      case "layer3":
-        ctx = this.protectedData.ctxes.drawingLayerThreeCtx;
-        canvas = this.protectedData.canvases.drawingCanvasLayerThree;
-        break;
-      default:
-        ctx = this.protectedData.ctxes.drawingLayerOneCtx;
-        canvas = this.protectedData.canvases.drawingCanvasLayerOne;
-        break;
+    const layer = this.gui_states.layer;
+    let target = this.protectedData.layerTargets.get(layer);
+    if (!target) {
+      // Fallback to first layer
+      const firstId = this.nrrd_states.layers[0];
+      target = this.protectedData.layerTargets.get(firstId)!;
     }
-    return { ctx, canvas };
+    return { ctx: target.ctx, canvas: target.canvas };
   }
 
   draw(opts?: IDrawOpts) {
@@ -868,12 +855,10 @@ export class DrawToolCore extends CommToolsData {
         if (this.protectedData.Is_Draw) {
           this.protectedData.ctxes.drawingLayerMasterCtx.lineCap = "round";
           this.protectedData.ctxes.drawingLayerMasterCtx.globalAlpha = 1;
-          this.protectedData.ctxes.drawingLayerOneCtx.lineCap = "round";
-          this.protectedData.ctxes.drawingLayerOneCtx.globalAlpha = 1;
-          this.protectedData.ctxes.drawingLayerTwoCtx.lineCap = "round";
-          this.protectedData.ctxes.drawingLayerTwoCtx.globalAlpha = 1;
-          this.protectedData.ctxes.drawingLayerThreeCtx.lineCap = "round";
-          this.protectedData.ctxes.drawingLayerThreeCtx.globalAlpha = 1;
+          for (const [, target] of this.protectedData.layerTargets) {
+            target.ctx.lineCap = "round";
+            target.ctx.globalAlpha = 1;
+          }
         } else {
           if (this.protectedData.Is_Shift_Pressed) {
             if (
@@ -1019,15 +1004,13 @@ export class DrawToolCore extends CommToolsData {
      */
 
     this.protectedData.canvases.drawingCanvasLayerMaster.width =
-      this.protectedData.canvases.drawingCanvasLayerOne.width =
-      this.protectedData.canvases.drawingCanvasLayerTwo.width =
-      this.protectedData.canvases.drawingCanvasLayerThree.width =
       this.nrrd_states.changedWidth;
     this.protectedData.canvases.drawingCanvasLayerMaster.height =
-      this.protectedData.canvases.drawingCanvasLayerOne.height =
-      this.protectedData.canvases.drawingCanvasLayerTwo.height =
-      this.protectedData.canvases.drawingCanvasLayerThree.height =
       this.nrrd_states.changedHeight;
+    for (const [, target] of this.protectedData.layerTargets) {
+      target.canvas.width = this.nrrd_states.changedWidth;
+      target.canvas.height = this.nrrd_states.changedHeight;
+    }
 
     /**
      * display and drawing canvas container
@@ -1277,21 +1260,12 @@ export class DrawToolCore extends CommToolsData {
    * Called after writing oldSlice/newSlice back to the volume during undo/redo.
    */
   private applyUndoRedoToCanvas(layerId: string) {
-    let ctx: CanvasRenderingContext2D;
-    let canvas: HTMLCanvasElement;
-    switch (layerId) {
-      case "layer2":
-        ctx = this.protectedData.ctxes.drawingLayerTwoCtx;
-        canvas = this.protectedData.canvases.drawingCanvasLayerTwo;
-        break;
-      case "layer3":
-        ctx = this.protectedData.ctxes.drawingLayerThreeCtx;
-        canvas = this.protectedData.canvases.drawingCanvasLayerThree;
-        break;
-      default: // "layer1"
-        ctx = this.protectedData.ctxes.drawingLayerOneCtx;
-        canvas = this.protectedData.canvases.drawingCanvasLayerOne;
+    let target = this.protectedData.layerTargets.get(layerId);
+    if (!target) {
+      const firstId = this.nrrd_states.layers[0];
+      target = this.protectedData.layerTargets.get(firstId)!;
     }
+    const { ctx, canvas } = target;
 
     // Clear and re-render the affected layer canvas from MaskVolume
     canvas.width = canvas.width;

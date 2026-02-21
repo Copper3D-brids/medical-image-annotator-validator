@@ -9,6 +9,7 @@ import {
   IConvertObjType,
   ICommXYZ,
   INewMaskData,
+  ILayerRenderTarget,
   IKeyBoardSettings
 } from "./coreTools/coreType";
 import { MaskVolume } from "./core";
@@ -187,8 +188,32 @@ export class CommToolsData {
     },
   };
   protectedData: IProtected;
-  constructor(container: HTMLElement, mainAreaContainer: HTMLElement) {
-    const canvases = this.generateCanvases();
+  constructor(
+    container: HTMLElement,
+    mainAreaContainer: HTMLElement,
+    options?: { layers?: string[] }
+  ) {
+    const layers = options?.layers ?? ["layer1", "layer2", "layer3"];
+    if (layers.length > 10) {
+      console.warn(
+        `CommToolsData: ${layers.length} layers requested; recommended maximum is 10.`
+      );
+    }
+
+    // Override the default states with the actual layer list
+    this.nrrd_states.layers = layers;
+    this.gui_states.layerVisibility = Object.fromEntries(
+      layers.map((id) => [id, true])
+    );
+    this.gui_states.channelVisibility = Object.fromEntries(
+      layers.map((id) => [
+        id,
+        { 1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true, 8: true },
+      ])
+    );
+
+    const systemCanvases = this.generateSystemCanvases();
+    const layerTargets = this.generateLayerTargets(layers);
 
     // Get NRRD dimensions (will be set later when NRRD loads)
     // Default to 1x1x1 for now, will be re-initialized in NrrdTools when dimensions are known
@@ -210,80 +235,58 @@ export class CommToolsData {
       axis: "z",
       maskData: {
         // Volumetric storage (Phase 3 — only storage mechanism)
-        volumes: {
-          layer1: new MaskVolume(width, height, depth, 1),
-          layer2: new MaskVolume(width, height, depth, 1),
-          layer3: new MaskVolume(width, height, depth, 1),
-        },
+        volumes: layers.reduce((acc, id) => {
+          acc[id] = new MaskVolume(width, height, depth, 1);
+          return acc;
+        }, {} as Record<string, MaskVolume>),
       },
+      layerTargets,
       canvases: {
-        /** 
-         * Caches raw image data from the current slice. 
+        /**
+         * Caches raw image data from the current slice.
          * Used as a source for zoom/pan operations to avoid repeated decoding.
          * Initialized as null, set in NrrdTools.ts.
          */
         originCanvas: null,
 
-        /** 
+        /**
          * Top-most interaction layer.
-         * Captures mouse/pen events and displays real-time drawing strokes 
+         * Captures mouse/pen events and displays real-time drawing strokes
          * before they are committed to a specific layer.
          */
-        drawingCanvas: canvases[0],
+        drawingCanvas: systemCanvases.drawingCanvas,
 
-        /** 
+        /**
          * Background layer displaying the actual medical image slice (CT/MRI).
          * This is the "base" image the user sees.
          */
-        displayCanvas: canvases[1],
+        displayCanvas: systemCanvases.displayCanvas,
 
-        /** 
+        /**
          * Composite display layer.
-         * Merges individual segmentation layers (1, 2, 3) for unified visualization 
+         * Merges all segmentation layers for unified visualization
          * on top of the medical image.
          */
-        drawingCanvasLayerMaster: canvases[2],
+        drawingCanvasLayerMaster: systemCanvases.drawingCanvasLayerMaster,
 
-        /** Storage layer for Segmentation Mask 1 */
-        drawingCanvasLayerOne: canvases[3],
-
-        /** Storage layer for Segmentation Mask 2 */
-        drawingCanvasLayerTwo: canvases[4],
-
-        /** Storage layer for Segmentation Mask 3 */
-        drawingCanvasLayerThree: canvases[5],
-
-        /** 
-         * Dedicated layer for 3D Sphere tool visualization. 
+        /**
+         * Dedicated layer for 3D Sphere tool visualization.
          * Kept separate to allow independent rendering of sphere UI elements.
          */
-        drawingSphereCanvas: canvases[6],
+        drawingSphereCanvas: systemCanvases.drawingSphereCanvas,
 
-        /** 
+        /**
          * Off-screen scratchpad canvas.
          * Used for internal image processing, scaling, and format conversion.
          */
-        emptyCanvas: canvases[7],
+        emptyCanvas: systemCanvases.emptyCanvas,
       },
       ctxes: {
-        drawingCtx: canvases[0].getContext("2d") as CanvasRenderingContext2D,
-        displayCtx: canvases[1].getContext("2d") as CanvasRenderingContext2D,
-        drawingLayerMasterCtx: canvases[2].getContext(
-          "2d"
-        ) as CanvasRenderingContext2D,
-        drawingLayerOneCtx: canvases[3].getContext(
-          "2d"
-        ) as CanvasRenderingContext2D,
-        drawingLayerTwoCtx: canvases[4].getContext(
-          "2d"
-        ) as CanvasRenderingContext2D,
-        drawingLayerThreeCtx: canvases[5].getContext(
-          "2d"
-        ) as CanvasRenderingContext2D,
-        drawingSphereCtx: canvases[6].getContext(
-          "2d"
-        ) as CanvasRenderingContext2D,
-        emptyCtx: canvases[7].getContext("2d", {
+        drawingCtx: systemCanvases.drawingCanvas.getContext("2d") as CanvasRenderingContext2D,
+        displayCtx: systemCanvases.displayCanvas.getContext("2d") as CanvasRenderingContext2D,
+        drawingLayerMasterCtx: systemCanvases.drawingCanvasLayerMaster.getContext("2d") as CanvasRenderingContext2D,
+        drawingSphereCtx: systemCanvases.drawingSphereCanvas.getContext("2d") as CanvasRenderingContext2D,
+        emptyCtx: systemCanvases.emptyCanvas.getContext("2d", {
           willReadFrequently: true,
         }) as CanvasRenderingContext2D,
       },
@@ -306,17 +309,11 @@ export class CommToolsData {
    */
   getVolumeForLayer(layer: string): MaskVolume {
     const { volumes } = this.protectedData.maskData;
-    switch (layer) {
-      case "layer1":
-        return volumes.layer1;
-      case "layer2":
-        return volumes.layer2;
-      case "layer3":
-        return volumes.layer3;
-      default:
-        // Fallback to layer1 for invalid input
-        return volumes.layer1;
-    }
+    const vol = volumes[layer];
+    if (vol) return vol;
+    const firstLayerId = this.nrrd_states.layers[0];
+    console.warn(`CommToolsData: unknown layer "${layer}", falling back to "${firstLayerId}"`);
+    return volumes[firstLayerId];
   }
 
   /**
@@ -351,13 +348,24 @@ export class CommToolsData {
 
   // ───────────────────────────────────────────────────────────────────────
 
-  private generateCanvases() {
-    const canvasArr: Array<HTMLCanvasElement> = [];
-    for (let i = 0; i < 8; i++) {
+  private generateSystemCanvases() {
+    return {
+      drawingCanvas: document.createElement("canvas"),
+      displayCanvas: document.createElement("canvas"),
+      drawingCanvasLayerMaster: document.createElement("canvas"),
+      drawingSphereCanvas: document.createElement("canvas"),
+      emptyCanvas: document.createElement("canvas"),
+    };
+  }
+
+  private generateLayerTargets(layerIds: string[]): Map<string, ILayerRenderTarget> {
+    const map = new Map<string, ILayerRenderTarget>();
+    for (const id of layerIds) {
       const canvas = document.createElement("canvas");
-      canvasArr.push(canvas);
+      const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
+      map.set(id, { canvas, ctx });
     }
-    return canvasArr;
+    return map;
   }
 
   /**
@@ -534,7 +542,7 @@ export class CommToolsData {
    */
   getOrCreateSliceBuffer(axis: "x" | "y" | "z"): ImageData | null {
     try {
-      const vol = this.getVolumeForLayer("layer1");
+      const vol = this.getVolumeForLayer(this.nrrd_states.layers[0]);
       const dims = vol.getDimensions();
       const [w, h] =
         axis === "z" ? [dims.width, dims.height] :
@@ -652,7 +660,7 @@ export class CommToolsData {
   }
 
   /**
-   * Composite all 3 layer canvases to the master display canvas.
+   * Composite all layer canvases to the master display canvas.
    * Only draws layers whose visibility is enabled.
    */
   compositeAllLayers(): void {
@@ -664,23 +672,10 @@ export class CommToolsData {
 
     // Master stores full-alpha composite; globalAlpha is applied once in
     // start() when drawing master to drawingCtx (single point of control).
-    if (this.gui_states.layerVisibility['layer1']) {
-      masterCtx.drawImage(
-        this.protectedData.canvases.drawingCanvasLayerOne,
-        0, 0, width, height
-      );
-    }
-    if (this.gui_states.layerVisibility['layer2']) {
-      masterCtx.drawImage(
-        this.protectedData.canvases.drawingCanvasLayerTwo,
-        0, 0, width, height
-      );
-    }
-    if (this.gui_states.layerVisibility['layer3']) {
-      masterCtx.drawImage(
-        this.protectedData.canvases.drawingCanvasLayerThree,
-        0, 0, width, height
-      );
+    for (const layerId of this.nrrd_states.layers) {
+      if (!this.gui_states.layerVisibility[layerId]) continue;
+      const target = this.protectedData.layerTargets.get(layerId);
+      if (target) masterCtx.drawImage(target.canvas, 0, 0, width, height);
     }
   }
 }

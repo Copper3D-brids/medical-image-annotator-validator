@@ -11,6 +11,7 @@
 
 import { BaseTool } from "./BaseTool";
 import type { ToolContext } from "./BaseTool";
+import type { ILayerRenderTarget } from "../coreTools/coreType";
 
 export interface DragSliceCallbacks {
   setSyncsliceNum: () => void;
@@ -31,11 +32,9 @@ export interface DragSliceCallbacks {
 
 interface IDragEffectCanvases {
   drawingCanvasLayerMaster: HTMLCanvasElement;
-  drawingCanvasLayerOne: HTMLCanvasElement;
-  drawingCanvasLayerTwo: HTMLCanvasElement;
-  drawingCanvasLayerThree: HTMLCanvasElement;
   displayCanvas: HTMLCanvasElement;
-  [key: string]: HTMLCanvasElement;
+  layerTargets: Map<string, ILayerRenderTarget>;
+  [key: string]: HTMLCanvasElement | Map<string, ILayerRenderTarget>;
 }
 
 export class DragSliceTool extends BaseTool {
@@ -148,23 +147,23 @@ export class DragSliceTool extends BaseTool {
     );
     this.ctx.protectedData.ctxes.displayCtx.restore();
 
-    // Phase 3: Draw ALL 3 layers from MaskVolume (multi-layer compositing)
+    // Phase 3: Draw ALL layers from MaskVolume (multi-layer compositing)
     if (nrrd.switchSliceFlag) {
       const axis = this.ctx.protectedData.axis;
       const sliceIndex = nrrd.currentIndex;
 
-      // Get a single reusable buffer — shared across all 3 layer renders
+      // Get a single reusable buffer — shared across all layer renders
       const buffer = this.callbacks.getOrCreateSliceBuffer(axis);
       if (buffer) {
         const w = nrrd.changedWidth;
         const h = nrrd.changedHeight;
 
-        this.callbacks.renderSliceToCanvas("layer1", axis, sliceIndex, buffer,
-          this.ctx.protectedData.ctxes.drawingLayerOneCtx, w, h);
-        this.callbacks.renderSliceToCanvas("layer2", axis, sliceIndex, buffer,
-          this.ctx.protectedData.ctxes.drawingLayerTwoCtx, w, h);
-        this.callbacks.renderSliceToCanvas("layer3", axis, sliceIndex, buffer,
-          this.ctx.protectedData.ctxes.drawingLayerThreeCtx, w, h);
+        for (const layerId of this.ctx.nrrd_states.layers) {
+          const target = this.ctx.protectedData.layerTargets.get(layerId);
+          if (target) {
+            this.callbacks.renderSliceToCanvas(layerId, axis, sliceIndex, buffer, target.ctx, w, h);
+          }
+        }
       }
 
       // Composite all layers to master canvas
@@ -185,38 +184,28 @@ export class DragSliceTool extends BaseTool {
     masterCtx.clearRect(0, 0, width, height);
 
     // Master stores full-alpha composite; globalAlpha applied in start() render loop.
-    if (this.ctx.gui_states.layerVisibility['layer1']) {
-      masterCtx.drawImage(
-        this.ctx.protectedData.canvases.drawingCanvasLayerOne,
-        0, 0, width, height
-      );
-    }
-    if (this.ctx.gui_states.layerVisibility['layer2']) {
-      masterCtx.drawImage(
-        this.ctx.protectedData.canvases.drawingCanvasLayerTwo,
-        0, 0, width, height
-      );
-    }
-    if (this.ctx.gui_states.layerVisibility['layer3']) {
-      masterCtx.drawImage(
-        this.ctx.protectedData.canvases.drawingCanvasLayerThree,
-        0, 0, width, height
-      );
+    for (const layerId of this.ctx.nrrd_states.layers) {
+      if (!this.ctx.gui_states.layerVisibility[layerId]) continue;
+      const target = this.ctx.protectedData.layerTargets.get(layerId);
+      if (target) masterCtx.drawImage(target.canvas, 0, 0, width, height);
     }
   }
 
   // ===== Canvas Cleanup =====
 
   private cleanCanvases(flag: boolean): void {
-    for (const name in this.dragEffectCanvases) {
-      if (flag) {
-        if (name === "displayCanvas") {
-          this.dragEffectCanvases.displayCanvas.width =
-            this.dragEffectCanvases.displayCanvas.width;
-        }
-      } else {
-        this.dragEffectCanvases[name].width =
-          this.dragEffectCanvases[name].width;
+    if (flag) {
+      // Same-index: only clear the display canvas
+      this.dragEffectCanvases.displayCanvas.width =
+        this.dragEffectCanvases.displayCanvas.width;
+    } else {
+      // Different slice: clear master, display, and all layer canvases
+      this.dragEffectCanvases.drawingCanvasLayerMaster.width =
+        this.dragEffectCanvases.drawingCanvasLayerMaster.width;
+      this.dragEffectCanvases.displayCanvas.width =
+        this.dragEffectCanvases.displayCanvas.width;
+      for (const [, target] of this.dragEffectCanvases.layerTargets) {
+        target.canvas.width = target.canvas.width;
       }
     }
   }

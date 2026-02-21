@@ -21,20 +21,11 @@ export class EraserTool extends BaseTool {
       const activeChannel = this.ctx.gui_states.activeChannel || 1;
       const channelColor = MASK_CHANNEL_COLORS[activeChannel] ?? MASK_CHANNEL_COLORS[1];
 
-      // Determine current layer context
+      // Determine current layer context via layerTargets Map
       const layer = this.ctx.gui_states.layer;
-      let layerCtx: CanvasRenderingContext2D;
-      switch (layer) {
-        case "layer2":
-          layerCtx = this.ctx.protectedData.ctxes.drawingLayerTwoCtx;
-          break;
-        case "layer3":
-          layerCtx = this.ctx.protectedData.ctxes.drawingLayerThreeCtx;
-          break;
-        default:
-          layerCtx = this.ctx.protectedData.ctxes.drawingLayerOneCtx;
-          break;
-      }
+      const target = this.ctx.protectedData.layerTargets.get(layer);
+      if (!target) return; // Unknown layer, safe exit
+      const layerCtx = target.ctx;
 
       // Calculate bounding box of the eraser circle
       const x0 = Math.max(0, Math.floor(x - radius));
@@ -97,23 +88,10 @@ export class EraserTool extends BaseTool {
       const fullH = this.ctx.nrrd_states.changedHeight;
       masterCtx.clearRect(0, 0, fullW, fullH);
 
-      if (this.ctx.gui_states.layerVisibility['layer1']) {
-        masterCtx.drawImage(
-          this.ctx.protectedData.canvases.drawingCanvasLayerOne,
-          0, 0, fullW, fullH
-        );
-      }
-      if (this.ctx.gui_states.layerVisibility['layer2']) {
-        masterCtx.drawImage(
-          this.ctx.protectedData.canvases.drawingCanvasLayerTwo,
-          0, 0, fullW, fullH
-        );
-      }
-      if (this.ctx.gui_states.layerVisibility['layer3']) {
-        masterCtx.drawImage(
-          this.ctx.protectedData.canvases.drawingCanvasLayerThree,
-          0, 0, fullW, fullH
-        );
+      for (const layerId of this.ctx.nrrd_states.layers) {
+        if (!this.ctx.gui_states.layerVisibility[layerId]) continue;
+        const lt = this.ctx.protectedData.layerTargets.get(layerId);
+        if (lt) masterCtx.drawImage(lt.canvas, 0, 0, fullW, fullH);
       }
     };
     return clearArc;

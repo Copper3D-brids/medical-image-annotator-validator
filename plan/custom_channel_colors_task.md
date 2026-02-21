@@ -6,7 +6,7 @@
 1. **动态 N-Layer 支持**：把系统从硬编码 3 层升级为支持用户传入任意数量的 layer（≥ 3）
 2. **自定义 Channel 颜色接口**：通过 NrrdTools 公开 API 让用户自定义每层中 channel 的颜色（依赖动态层）
 
-> **Status:** Not Started
+> **Status:** In Progress (A1 ✅, A2 ✅, A3 ✅, A4 ✅, A5 ✅ — Phase A complete)
 > **Priority:** High
 > **Depends on:** Phase 3 MaskVolume migration (completed)
 
@@ -91,11 +91,11 @@ masterCtx.drawImage(target.canvas, 0, 0); // 合成操作
 
 ### Task A1：类型系统重构（`coreType.ts`）
 
-- [ ] `INewMaskData` 改为 `Record<string, MaskVolume>`（移除固定 layer1/layer2/layer3 字段）
-- [ ] 新增 `ILayerRenderTarget { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D }` 类型
-- [ ] `IProtected` 新增 `layerTargets: Map<string, ILayerRenderTarget>`，移除 `canvases.drawingCanvasLayerOne/Two/Three` 和 `ctxes.drawingLayerOneCtx/TwoCtx/ThreeCtx`
-- [ ] `INrrdStates.layers` 类型从字面量 tuple 改为 `string[]`
-- [ ] `IGuiParameterSettings.advance.layer.value` 类型放宽为 `string[]`
+- [x] `INewMaskData` 改为 `Record<string, MaskVolume>`（移除固定 layer1/layer2/layer3 字段）
+- [x] 新增 `ILayerRenderTarget { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D }` 类型
+- [x] `IProtected` 新增 `layerTargets: Map<string, ILayerRenderTarget>`，移除 `canvases.drawingCanvasLayerOne/Two/Three` 和 `ctxes.drawingLayerOneCtx/TwoCtx/ThreeCtx`
+- [x] `INrrdStates.layers` 类型从字面量 tuple 改为 `string[]`
+- [x] `IGuiParameterSettings.advance.layer.value` 类型放宽为 `string[]`
 
 **完成标准**: 类型编译通过，不破坏现有具名 canvas 访问
 
@@ -103,18 +103,18 @@ masterCtx.drawImage(target.canvas, 0, 0); // 合成操作
 
 ### Task A2：CommToolsData 重构
 
-- [ ] constructor 接受可选 `options: { layers?: string[] }` 参数（默认 `['layer1','layer2','layer3']`，向后兼容）
+- [x] constructor 接受可选 `options: { layers?: string[] }` 参数（默认 `['layer1','layer2','layer3']`，向后兼容）
   ```ts
   constructor(container, mainAreaContainer, options?: { layers?: string[] })
   ```
-- [ ] `nrrd_states.layers` 使用传入的 layers（默认 3 层）
-- [ ] `generateCanvases()` 改为 `generateLayerTargets(layerIds: string[])` 返回 `Map<string, ILayerRenderTarget>`
+- [x] `nrrd_states.layers` 使用传入的 layers（默认 3 层）
+- [x] `generateCanvases()` 改为 `generateLayerTargets(layerIds: string[])` 返回 `Map<string, ILayerRenderTarget>`
   - 每个 layer 同时创建 canvas + ctx 并配对存入 Map，保证原子性
-  - 系统 canvas (drawing/display/master/sphere/empty) 保持独立具名属性不变
-- [ ] `protectedData.maskData.volumes` 使用 `layerIds.reduce(...)` 动态生成
-- [ ] `protectedData.layerTargets` 使用配对 Map 替代 `canvases.layerCanvasXxx` / `ctxes.layerXxxCtx`
-- [ ] `getVolumeForLayer(layer: string)` 改为直接 `volumes[layer]` 查找（移除 switch-case），未找到时 fallback 首层并 console.warn
-- [ ] `compositeAllLayers()` 改为 for 循环，一次 Map.get() 取 canvas：
+  - 系统 canvas (drawing/display/master/sphere/empty) 保持独立具名属性不变（新增 `generateSystemCanvases()`）
+- [x] `protectedData.maskData.volumes` 使用 `layerIds.reduce(...)` 动态生成
+- [x] `protectedData.layerTargets` 使用配对 Map 替代 `canvases.layerCanvasXxx` / `ctxes.layerXxxCtx`
+- [x] `getVolumeForLayer(layer: string)` 改为直接 `volumes[layer]` 查找（移除 switch-case），未找到时 fallback 首层并 console.warn
+- [x] `compositeAllLayers()` 改为 for 循环，一次 Map.get() 取 canvas：
   ```ts
   for (const layerId of this.nrrd_states.layers) {
     if (!this.gui_states.layerVisibility[layerId]) continue;
@@ -122,7 +122,7 @@ masterCtx.drawImage(target.canvas, 0, 0); // 合成操作
     if (target) masterCtx.drawImage(target.canvas, 0, 0, width, height);
   }
   ```
-- [ ] `gui_states.layerVisibility` / `channelVisibility` 动态初始化 for 所有 layers
+- [x] `gui_states.layerVisibility` / `channelVisibility` 动态初始化 for 所有 layers
 
 **完成标准**: 默认 3 层行为不变；传入 4/5/N 层时 canvas 和 volume 自动增加
 
@@ -130,18 +130,16 @@ masterCtx.drawImage(target.canvas, 0, 0); // 合成操作
 
 ### Task A3：NrrdTools 重构
 
-- [ ] `setAllSlices()` 中 volumes 初始化改为：
-  ```ts
-  const layers = this.nrrd_states.layers;
-  this.protectedData.maskData.volumes = layers.reduce((acc, id) => {
-    acc[id] = new MaskVolume(vw, vh, vd, 1);
-    return acc;
-  }, {} as Record<string, MaskVolume>);
-  ```
-- [ ] `clear()` 中 volumes 重置使用相同模式（1×1×1 placeholders）
-- [ ] `getChannelVisibility()` 改为遍历 `this.nrrd_states.layers`（移除固定 3 层遍历）
-- [ ] `setLayerVisible()`, `isLayerVisible()` 等接口的 `LayerId` 类型放宽为 `string`（动态 layer id 可能超出固定 3 个）
-- [ ] `hasLayerData()` 使用 `volumes[layerId]` 动态查找（已向后兼容，不需大改）
+- [x] `setAllSlices()` 中 volumes 初始化改为动态 `layers.reduce(...)` 模式
+- [x] `clear()` 中 volumes 重置使用相同模式（1×1×1 placeholders）
+- [x] `getChannelVisibility()` 改为遍历 `this.nrrd_states.layers`（移除固定 3 层遍历）
+- [x] `setLayerVisible()`, `isLayerVisible()` 等接口的 `LayerId` 类型放宽为 `string`（含 `setActiveLayer`, `getActiveLayer`, `setChannelVisible`, `isChannelVisible`, `hasLayerData`）
+- [x] `hasLayerData()` 使用 `volumes[layerId]` 动态查找
+- [x] `resetLayerCanvas()` 改为 for-of `layerTargets` 循环
+- [x] `resizePaintArea()` layer canvas 尺寸设置改为 for-of `layerTargets` 循环
+- [x] `reloadMasksFromVolume()` 改为 for-of `layerTargets` 循环（移除 3 个硬编码 clearRect + renderSliceToCanvas）
+- [x] `setMasksFromNIfTI()` 移除 `keyof` cast（volumes 已是 `Record<string, MaskVolume>`）
+- [x] 移除未使用的 `LayerId` 类型导入
 
 **完成标准**: N 层初始化后 mask 加载、clear 均正确工作
 
@@ -149,17 +147,11 @@ masterCtx.drawImage(target.canvas, 0, 0); // 合成操作
 
 ### Task A4：DragSliceTool 重构
 
-- [ ] `IDragEffectCanvases` interface 保留具名 system canvas（master/display），layer canvas 引用改为 `layerTargets: Map<string, ILayerRenderTarget>`
-- [ ] `drawDragSlice()` 中对 layers 的 renderSliceToCanvas 改为 for 循环，单次 Map.get() 同时取 ctx：
-  ```ts
-  for (const layerId of this.ctx.nrrd_states.layers) {
-    const target = this.ctx.protectedData.layerTargets.get(layerId);
-    if (target) {
-      this.callbacks.renderSliceToCanvas(layerId, axis, sliceIndex, buffer, target.ctx, w, h);
-    }
-  }
-  ```
-- [ ] `compositeAllLayers()` 改为 for 循环，单次 Map.get() 取 canvas
+- [x] `IDragEffectCanvases` interface 保留具名 system canvas（master/display），layer canvas 引用改为 `layerTargets: Map<string, ILayerRenderTarget>`
+- [x] `drawDragSlice()` 中对 layers 的 renderSliceToCanvas 改为 for 循环，单次 Map.get() 同时取 ctx
+- [x] `compositeAllLayers()` 改为 for 循环，单次 Map.get() 取 canvas
+- [x] `cleanCanvases()` 改为遍历 `layerTargets` 清除
+- [x] `DragOperator.ts` 中 `dragEffectCanvases` 创建改为引用 `layerTargets`
 
 **完成标准**: 拖动切片时 N 层全部正确渲染
 
@@ -167,13 +159,15 @@ masterCtx.drawImage(target.canvas, 0, 0); // 合成操作
 
 ### Task A5：EraserTool 重构
 
-- [ ] `createClearArc()` 中 switch-case 取 layerCtx 改为单次 Map.get()（消除 switch-case 的穷举维护）：
-  ```ts
-  const target = this.ctx.protectedData.layerTargets.get(layer);
-  if (!target) return; // 未知 layer，安全退出
-  const layerCtx = target.ctx;
-  ```
-- [ ] 最后 compositing 部分改为 for 循环，单次 Map.get() 取 canvas
+- [x] `createClearArc()` 中 switch-case 取 layerCtx 改为单次 `layerTargets.get()`
+- [x] 最后 compositing 部分改为 for 循环，单次 Map.get() 取 canvas
+
+**额外修复**（计划中未列出但必须同步修改的文件）：
+- [x] `DrawToolCore.ts`: `setCurrentLayer()` switch → `layerTargets.get()`
+- [x] `DrawToolCore.ts`: `start()` render loop 中 3 个 layer ctx 初始化 → for-of `layerTargets`
+- [x] `DrawToolCore.ts`: canvas sizing block → for-of `layerTargets`
+- [x] `DrawToolCore.ts`: `applyUndoRedoToCanvas()` switch → `layerTargets.get()`
+- [x] `ImageStoreHelper.ts`: `getCanvasForLayer()` switch → `layerTargets.get()`
 
 **完成标准**: 橡皮擦在 N 层模式下正确工作
 

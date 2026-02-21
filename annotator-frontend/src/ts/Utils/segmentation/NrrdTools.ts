@@ -20,8 +20,20 @@ import {
 import { DragOperator } from "./DragOperator";
 import { DrawToolCore } from "./DrawToolCore";
 import { MaskVolume, CHANNEL_HEX_COLORS } from "./core";
-import type { LayerId, ChannelValue } from "./core";
+import type { ChannelValue } from "./core";
 
+/**
+ * Core NRRD annotation tool for medical image segmentation.
+ *
+ * @example
+ * ```ts
+ * // Default 3 layers: layer1, layer2, layer3
+ * const tools = new NrrdTools(container);
+ *
+ * // Custom layers
+ * const tools = new NrrdTools(container, { layers: ["layer1", "layer2"] });
+ * ```
+ */
 export class NrrdTools extends DrawToolCore {
   container: HTMLDivElement;
 
@@ -35,8 +47,8 @@ export class NrrdTools extends DrawToolCore {
   private _sliceRAFId: number | null = null;
   private _pendingSliceStep: number = 0;
 
-  constructor(container: HTMLDivElement) {
-    super(container);
+  constructor(container: HTMLDivElement, options?: { layers?: string[] }) {
+    super(container, options);
     this.container = container;
 
     this.protectedData.previousDrawingImage =
@@ -158,7 +170,7 @@ export class NrrdTools extends DrawToolCore {
   /**
    * Set the active layer and update fillColor/brushColor to match the active channel.
    */
-  setActiveLayer(layerId: LayerId): void {
+  setActiveLayer(layerId: string): void {
     this.gui_states.layer = layerId;
     const hexColor = CHANNEL_HEX_COLORS[this.gui_states.activeChannel] || '#00ff00';
     this.gui_states.fillColor = hexColor;
@@ -178,8 +190,8 @@ export class NrrdTools extends DrawToolCore {
   /**
    * Get the currently active layer id.
    */
-  getActiveLayer(): LayerId {
-    return this.gui_states.layer as LayerId;
+  getActiveLayer(): string {
+    return this.gui_states.layer;
   }
 
   /**
@@ -192,7 +204,7 @@ export class NrrdTools extends DrawToolCore {
   /**
    * Set visibility of a layer and re-render.
    */
-  setLayerVisible(layerId: LayerId, visible: boolean): void {
+  setLayerVisible(layerId: string, visible: boolean): void {
     this.gui_states.layerVisibility[layerId] = visible;
     this.reloadMasksFromVolume();
   }
@@ -200,14 +212,14 @@ export class NrrdTools extends DrawToolCore {
   /**
    * Check if a layer is visible.
    */
-  isLayerVisible(layerId: LayerId): boolean {
+  isLayerVisible(layerId: string): boolean {
     return this.gui_states.layerVisibility[layerId] ?? true;
   }
 
   /**
    * Set visibility of a specific channel within a layer and re-render.
    */
-  setChannelVisible(layerId: LayerId, channel: ChannelValue, visible: boolean): void {
+  setChannelVisible(layerId: string, channel: ChannelValue, visible: boolean): void {
     if (this.gui_states.channelVisibility[layerId]) {
       this.gui_states.channelVisibility[layerId][channel] = visible;
     }
@@ -217,7 +229,7 @@ export class NrrdTools extends DrawToolCore {
   /**
    * Check if a specific channel within a layer is visible.
    */
-  isChannelVisible(layerId: LayerId, channel: ChannelValue): boolean {
+  isChannelVisible(layerId: string, channel: ChannelValue): boolean {
     return this.gui_states.channelVisibility[layerId]?.[channel] ?? true;
   }
 
@@ -233,7 +245,7 @@ export class NrrdTools extends DrawToolCore {
    */
   getChannelVisibility(): Record<string, Record<number, boolean>> {
     const result: Record<string, Record<number, boolean>> = {};
-    for (const layerId of ['layer1', 'layer2', 'layer3']) {
+    for (const layerId of this.nrrd_states.layers) {
       result[layerId] = { ...this.gui_states.channelVisibility[layerId] };
     }
     return result;
@@ -255,7 +267,7 @@ export class NrrdTools extends DrawToolCore {
    * }
    * ```
    */
-  hasLayerData(layerId: LayerId): boolean {
+  hasLayerData(layerId: string): boolean {
     const volume = this.protectedData.maskData.volumes[layerId];
     if (!volume) {
       return false;
@@ -460,11 +472,13 @@ export class NrrdTools extends DrawToolCore {
     // Invalidate reusable buffer from previous dataset
     this.invalidateSliceBuffer();
     const [vw, vh, vd] = this.nrrd_states.dimensions;
-    this.protectedData.maskData.volumes = {
-      layer1: new MaskVolume(vw, vh, vd, 1),
-      layer2: new MaskVolume(vw, vh, vd, 1),
-      layer3: new MaskVolume(vw, vh, vd, 1),
-    };
+    this.protectedData.maskData.volumes = this.nrrd_states.layers.reduce(
+      (acc, id) => {
+        acc[id] = new MaskVolume(vw, vh, vd, 1);
+        return acc;
+      },
+      {} as Record<string, MaskVolume>
+    );
 
     this.nrrd_states.spaceOrigin = (
       randomSlice.x.volume.header.space_origin as number[]
@@ -503,6 +517,7 @@ export class NrrdTools extends DrawToolCore {
     return imageDataLable;
   }
 
+  // need to remove
   setMasksData(
     masksData: storeExportPaintImageType,
     loadingBar?: loadingBarType
@@ -589,7 +604,7 @@ export class NrrdTools extends DrawToolCore {
 
     try {
       for (const [layerId, rawData] of layerVoxels) {
-        const volume = this.protectedData.maskData.volumes[layerId as keyof typeof this.protectedData.maskData.volumes];
+        const volume = this.protectedData.maskData.volumes[layerId];
         if (!volume) {
           console.warn(`setMasksFromNIfTI: unknown layer "${layerId}", skipping`);
           continue;
@@ -836,11 +851,13 @@ export class NrrdTools extends DrawToolCore {
     this.undoManager.clearAll();
 
     // Phase 3: Reset MaskVolume storage to 1×1×1 placeholders
-    this.protectedData.maskData.volumes = {
-      layer1: new MaskVolume(1, 1, 1, 1),
-      layer2: new MaskVolume(1, 1, 1, 1),
-      layer3: new MaskVolume(1, 1, 1, 1),
-    };
+    this.protectedData.maskData.volumes = this.nrrd_states.layers.reduce(
+      (acc, id) => {
+        acc[id] = new MaskVolume(1, 1, 1, 1);
+        return acc;
+      },
+      {} as Record<string, MaskVolume>
+    );
 
     // Invalidate reusable slice buffer
     this.invalidateSliceBuffer();
@@ -1117,7 +1134,7 @@ export class NrrdTools extends DrawToolCore {
     // Phase 3 Task 3.1: Only clear the active layer's MaskVolume
     if (this.nrrd_states.dimensions.length === 3) {
       const [w, h, d] = this.nrrd_states.dimensions;
-      const activeLayer = this.gui_states.layer as "layer1" | "layer2" | "layer3";
+      const activeLayer = this.gui_states.layer;
 
       // Re-init only the active layer's MaskVolume
       this.protectedData.maskData.volumes[activeLayer] = new MaskVolume(w, h, d, 1);
@@ -1162,12 +1179,9 @@ export class NrrdTools extends DrawToolCore {
   resetLayerCanvas() {
     this.protectedData.canvases.drawingCanvasLayerMaster.width =
       this.protectedData.canvases.drawingCanvasLayerMaster.width;
-    this.protectedData.canvases.drawingCanvasLayerOne.width =
-      this.protectedData.canvases.drawingCanvasLayerOne.width;
-    this.protectedData.canvases.drawingCanvasLayerTwo.width =
-      this.protectedData.canvases.drawingCanvasLayerTwo.width;
-    this.protectedData.canvases.drawingCanvasLayerThree.width =
-      this.protectedData.canvases.drawingCanvasLayerThree.width;
+    for (const [, target] of this.protectedData.layerTargets) {
+      target.canvas.width = target.canvas.width;
+    }
   }
 
   redrawMianPreOnDisplayCanvas() {
@@ -1227,12 +1241,10 @@ export class NrrdTools extends DrawToolCore {
       this.protectedData.canvases.drawingCanvas.height = newHeight;
       this.protectedData.canvases.drawingCanvasLayerMaster.width = newWidth;
       this.protectedData.canvases.drawingCanvasLayerMaster.height = newHeight;
-      this.protectedData.canvases.drawingCanvasLayerOne.width = newWidth;
-      this.protectedData.canvases.drawingCanvasLayerOne.height = newHeight;
-      this.protectedData.canvases.drawingCanvasLayerTwo.width = newWidth;
-      this.protectedData.canvases.drawingCanvasLayerTwo.height = newHeight;
-      this.protectedData.canvases.drawingCanvasLayerThree.width = newWidth;
-      this.protectedData.canvases.drawingCanvasLayerThree.height = newHeight;
+      for (const [, target] of this.protectedData.layerTargets) {
+        target.canvas.width = newWidth;
+        target.canvas.height = newHeight;
+      }
     }
 
     this.redrawDisplayCanvas();
@@ -1258,32 +1270,27 @@ export class NrrdTools extends DrawToolCore {
     // Clamp sliceIndex to valid range for current axis
     // (currentIndex may not be updated yet when switching axes)
     try {
-      const vol = this.getVolumeForLayer("layer1");
+      const vol = this.getVolumeForLayer(this.nrrd_states.layers[0]);
       const dims = vol.getDimensions();
       const maxSlice = axis === "x" ? dims.width : axis === "y" ? dims.height : dims.depth;
       if (sliceIndex >= maxSlice) sliceIndex = maxSlice - 1;
       if (sliceIndex < 0) sliceIndex = 0;
     } catch { /* volume not ready */ }
 
-    // Get a single reusable buffer shared across all 3 layer renders
+    // Get a single reusable buffer shared across all layer renders
     const buffer = this.getOrCreateSliceBuffer(axis);
     if (!buffer) return;
 
     const w = this.nrrd_states.changedWidth;
     const h = this.nrrd_states.changedHeight;
 
-    // Clear all layer canvases
-    this.protectedData.ctxes.drawingLayerOneCtx.clearRect(0, 0, w, h);
-    this.protectedData.ctxes.drawingLayerTwoCtx.clearRect(0, 0, w, h);
-    this.protectedData.ctxes.drawingLayerThreeCtx.clearRect(0, 0, w, h);
-
-    // Render each layer using the shared buffer
-    this.renderSliceToCanvas("layer1", axis, sliceIndex, buffer,
-      this.protectedData.ctxes.drawingLayerOneCtx, w, h);
-    this.renderSliceToCanvas("layer2", axis, sliceIndex, buffer,
-      this.protectedData.ctxes.drawingLayerTwoCtx, w, h);
-    this.renderSliceToCanvas("layer3", axis, sliceIndex, buffer,
-      this.protectedData.ctxes.drawingLayerThreeCtx, w, h);
+    // Clear and render each layer using the shared buffer
+    for (const layerId of this.nrrd_states.layers) {
+      const target = this.protectedData.layerTargets.get(layerId);
+      if (!target) continue;
+      target.ctx.clearRect(0, 0, w, h);
+      this.renderSliceToCanvas(layerId, axis, sliceIndex, buffer, target.ctx, w, h);
+    }
 
     // Composite all layers to master canvas
     this.compositeAllLayers();

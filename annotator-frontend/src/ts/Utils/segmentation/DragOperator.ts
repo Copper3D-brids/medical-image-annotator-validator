@@ -88,11 +88,8 @@ export class DragOperator {
     const dragEffectCanvases = {
       drawingCanvasLayerMaster:
         this.protectedData.canvases.drawingCanvasLayerMaster,
-      drawingCanvasLayerOne: this.protectedData.canvases.drawingCanvasLayerOne,
-      drawingCanvasLayerTwo: this.protectedData.canvases.drawingCanvasLayerTwo,
-      drawingCanvasLayerThree:
-        this.protectedData.canvases.drawingCanvasLayerThree,
       displayCanvas: this.protectedData.canvases.displayCanvas,
+      layerTargets: this.protectedData.layerTargets,
     };
 
     const toolCtx = {

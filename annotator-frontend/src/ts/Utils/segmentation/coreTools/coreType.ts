@@ -80,12 +80,18 @@ interface IPaintImage {
 type MaskVolume = any; // Placeholder — use real import in CommToolsData
 
 /**
- * New mask data structure using MaskVolume for true 3D storage
+ * New mask data structure using MaskVolume for true 3D storage.
+ * Dynamic N-layer support: keyed by layer id (e.g. 'layer1', 'layer2', ...).
  */
-interface INewMaskData {
-  layer1: MaskVolume;
-  layer2: MaskVolume;
-  layer3: MaskVolume;
+type INewMaskData = Record<string, MaskVolume>;
+
+/**
+ * A paired canvas + 2D context for a single annotation layer.
+ * Stored atomically in IProtected.layerTargets to prevent canvas/ctx desync.
+ */
+interface ILayerRenderTarget {
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
 }
 
 /**
@@ -115,15 +121,14 @@ interface IProtected {
   maskData: IMaskData;
   previousDrawingImage?: ImageData;
 
+  /** Dynamic per-layer canvas+ctx pairs. Replaces hardcoded LayerOne/Two/Three fields. */
+  layerTargets: Map<string, ILayerRenderTarget>;
   canvases: {
     originCanvas: HTMLCanvasElement | any;
     drawingCanvas: HTMLCanvasElement;
     displayCanvas: HTMLCanvasElement;
     drawingCanvasLayerMaster: HTMLCanvasElement;
-    drawingCanvasLayerOne: HTMLCanvasElement;
-    drawingCanvasLayerTwo: HTMLCanvasElement;
     drawingSphereCanvas: HTMLCanvasElement;
-    drawingCanvasLayerThree: HTMLCanvasElement;
     emptyCanvas: HTMLCanvasElement;
   };
   ctxes: {
@@ -132,9 +137,6 @@ interface IProtected {
     emptyCtx: CanvasRenderingContext2D;
     drawingSphereCtx: CanvasRenderingContext2D;
     drawingLayerMasterCtx: CanvasRenderingContext2D;
-    drawingLayerOneCtx: CanvasRenderingContext2D;
-    drawingLayerTwoCtx: CanvasRenderingContext2D;
-    drawingLayerThreeCtx: CanvasRenderingContext2D;
   };
 }
 
@@ -232,7 +234,7 @@ interface INrrdStates {
   previousPanelL: number;
   previousPanelT: number;
   switchSliceFlag: boolean;
-  layers: ["layer1", "layer2", "layer3"];
+  layers: string[];
 
   getMask: (
     sliceData: Uint8Array,
@@ -361,7 +363,7 @@ interface IGuiParameterSettings {
   advance: {
     layer: {
       name: "Layer",
-      value: ["layer1", "layer2", "layer3"],
+      value: string[],
     },
     cursor: {
       name: "CursorIcon",
@@ -420,6 +422,7 @@ export {
   ISkipSlicesDictType,
   IMaskData,
   INewMaskData,
+  ILayerRenderTarget,
   ICursorPage,
   IGuiParameterSettings,
   IKeyBoardSettings

@@ -198,6 +198,7 @@ function initCopper() {
         }
     );
 
+    // nrrdTools = new Copper.NrrdTools(canvasContainer.value as HTMLDivElement, {layers: ["layer1", "layer2", "layer3", "layer4"] });
     nrrdTools = new Copper.NrrdTools(canvasContainer.value as HTMLDivElement);
     nrrdTools.setDisplaySliceIndexPanel(
         sliceIndexContainer.value as HTMLDivElement
@@ -207,8 +208,7 @@ function initCopper() {
     nrrdTools.setEraserUrls(eraserUrls);
     nrrdTools.setPencilIconUrls(cursorUrls);
     // nrrdTools.setMainAreaSize(3);
-
-
+    
     // sphere plan b
     toolNrrdStates = nrrdTools.getNrrdToolsSettings();
     // toolsState.spherePlanB = false;
