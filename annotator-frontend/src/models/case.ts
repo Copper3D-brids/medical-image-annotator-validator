@@ -25,6 +25,8 @@ interface IOutput {
     mask_layer2_nii_size?: string | number;
     mask_layer3_nii_path?: string;
     mask_layer3_nii_size?: string | number;
+    mask_layer4_nii_path?: string;
+    mask_layer4_nii_size?: string | number;
 }
 
 export interface IDetails {

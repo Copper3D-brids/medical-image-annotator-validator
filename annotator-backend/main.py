@@ -183,7 +183,7 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                     if "json" in output_type and not filename.endswith(".json"):
                         filename += ".json"
                     elif "nii" in output_type and not filename.endswith(".nii.gz") and not filename.endswith(".nii"):
-                        filename += ".nii.gz"  # Common in medical imaging, but let's stick to simple .nii if specified or no ext
+                        filename += ".nii"  # Common in medical imaging, but let's stick to simple .nii if specified or no ext
                     elif "obj" in output_type and not filename.endswith(".obj"):
                         filename += ".obj"
                     elif "glb" in output_type and not filename.endswith(".glb"):
@@ -204,8 +204,6 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                         "path": str(file_path),
                         "size": file_size
                     }
-                    print("path", str(file_path))
-                    print("size", file_size)
 
                 # Update case_output with fields matching Config.OUTPUTS
                 case_output = CaseOutput(
@@ -220,6 +218,8 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                     mask_layer2_nii_size=file_info.get("mask-layer2-nii", {}).get("size"),
                     mask_layer3_nii_path=file_info.get("mask-layer3-nii", {}).get("path"),
                     mask_layer3_nii_size=file_info.get("mask-layer3-nii", {}).get("size"),
+                    mask_layer4_nii_path=file_info.get("mask-layer4-nii", {}).get("path"),
+                    mask_layer4_nii_size=file_info.get("mask-layer4-nii", {}).get("size"),
                     # Config.OUTPUTS[4]: mask-obj
                     mask_obj_path=file_info.get("mask-obj", {}).get("path"),
                     mask_obj_size=file_info.get("mask-obj", {}).get("size"),

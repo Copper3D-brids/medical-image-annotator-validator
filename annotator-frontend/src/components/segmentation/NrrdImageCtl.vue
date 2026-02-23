@@ -61,7 +61,7 @@
  * @emits Segmentation:RegisterImageChanged - Emitted when register toggle changes
  */
 import Switcher from "@/components/common/Switcher.vue";
-import { ref, onMounted, onUnmounted, onBeforeMount } from "vue";
+import { ref, onMounted, onUnmounted, onBeforeMount, watch } from "vue";
 import { useSegmentationCasesStore } from "@/store/app";
 import { storeToRefs } from "pinia";
 import emitter from "@/plugins/custom-emitter";
@@ -81,8 +81,8 @@ type resultType = {
 const { config } = useAppConfig();
 const { getCasesInfo } = useCases();
 
-/** All cases details from Pinia store */
-const { allCasesDetails } = storeToRefs(useSegmentationCasesStore());
+/** All cases details and plugin ready flag from Pinia store */
+const { allCasesDetails, isPluginReady } = storeToRefs(useSegmentationCasesStore());
 
 /** Whether case selector is disabled (during loading) */
 const disableSelectCase = ref(false);
@@ -127,7 +127,16 @@ const switchLable = ref<"on" | "off">("on");
 let contrastState: selecedType;
 
 onBeforeMount(() => {
-  getCasesInfo(config!)
+  if (isPluginReady.value) {
+    getCasesInfo(config!);
+  } else {
+    const stopWatch = watch(isPluginReady, (ready) => {
+      if (ready) {
+        getCasesInfo(config!);
+        stopWatch();
+      }
+    });
+  }
 });
 
 onMounted(() => {

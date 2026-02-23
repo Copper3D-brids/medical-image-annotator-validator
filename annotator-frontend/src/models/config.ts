@@ -16,8 +16,8 @@ export interface IToolConfig {
 }
 
 export interface IToolConfigResponse {
-    status: number;
-    assay_uuid: string;
+    status: string;
+    assay_id: number;
 }
 
 export interface IAuth {

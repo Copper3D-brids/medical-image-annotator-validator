@@ -389,3 +389,235 @@ useLayerChannel::setActiveChannel(channel)                     [L110-113]
 | CommToolsData.ts | [annotator-frontend/src/ts/Utils/segmentation/CommToolsData.ts](annotator-frontend/src/ts/Utils/segmentation/CommToolsData.ts) | 渲染管线 + Canvas 管理 |
 | MaskVolume.ts | [annotator-frontend/src/ts/Utils/segmentation/core/MaskVolume.ts](annotator-frontend/src/ts/Utils/segmentation/core/MaskVolume.ts) | 体素存储 + renderLabelSliceInto |
 | core/types.ts | [annotator-frontend/src/ts/Utils/segmentation/core/types.ts](annotator-frontend/src/ts/Utils/segmentation/core/types.ts) | Channel 颜色定义 |
+
+---
+
+## 8. 新增 Layer4 的全栈改动汇总
+
+> 记录从 3 层扩展到 4 层时，前端与后端所有涉及改动的文件和具体位置。
+
+---
+
+### 8.1 前端改动
+
+#### 8.1.1 `useLayerChannel.ts` — LAYER_CONFIGS 扩展
+
+**文件**: [annotator-frontend/src/composables/left-panel/useLayerChannel.ts](annotator-frontend/src/composables/left-panel/useLayerChannel.ts)
+
+`LAYER_CONFIGS` 数组新增第 4 个 layer 条目，同时移除了之前 layer2/layer3 上的 `disable` / `disabledChannels` 临时限制：
+
+```ts
+// 旧（3层，有临时禁用限制）
+export const LAYER_CONFIGS: LayerConfig[] = [
+    { id: 'layer1', name: 'Layer 1' },
+    { id: 'layer2', name: 'Layer 2', disabledChannels: [2, 3, 4, 5, 6, 7, 8] },
+    { id: 'layer3', name: 'Layer 3', disable: true },
+];
+
+// 新（4层，全部启用）
+export const LAYER_CONFIGS: LayerConfig[] = [
+    { id: 'layer1', name: 'Layer 1' },
+    { id: 'layer2', name: 'Layer 2' },
+    { id: 'layer3', name: 'Layer 3' },
+    { id: 'layer4', name: 'Layer 4' },   // ← 新增
+];
+```
+
+`layerVisibility`、`channelVisibility`、`layerDisabled`、`channelDisabled` 四个响应式 ref 均通过 `Object.fromEntries(LAYER_CONFIGS.map(...))` 动态初始化，因此新增 `layer4` 到 `LAYER_CONFIGS` 后**自动包含**，无需手动修改初始化逻辑。
+
+`syncFromManager()` 同样通过 `const layers = LAYER_CONFIGS.map(l => l.id)` 动态遍历，无需改动。
+
+---
+
+#### 8.1.2 `LeftPanelCore.vue` — NrrdTools 初始化参数
+
+**文件**: [annotator-frontend/src/components/viewer/LeftPanelCore.vue](annotator-frontend/src/components/viewer/LeftPanelCore.vue) [L202](annotator-frontend/src/components/viewer/LeftPanelCore.vue#L202)
+
+在创建 `NrrdTools` 实例时，`layers` 选项中加入 `"layer4"`：
+
+```ts
+// 旧
+nrrdTools = new Copper.NrrdTools(canvasContainer.value as HTMLDivElement);
+
+// 新
+nrrdTools = new Copper.NrrdTools(canvasContainer.value as HTMLDivElement, {
+    layers: ["layer1", "layer2", "layer3", "layer4"]  // ← 新增 layer4
+});
+```
+
+此参数决定 NrrdTools 内部创建几个 `MaskVolume` 实例；不传则默认 1 层。
+
+---
+
+#### 8.1.3 `models/case.ts` — IOutput 类型扩展
+
+**文件**: [annotator-frontend/src/models/case.ts](annotator-frontend/src/models/case.ts)
+
+`IOutput` 接口新增 `layer4` 的 NIfTI 路径和大小字段：
+
+```ts
+export interface IOutput {
+    // ... layer1-3 字段 ...
+    mask_layer4_nii_path?: string;      // ← 新增
+    mask_layer4_nii_size?: string | number;  // ← 新增
+}
+```
+
+---
+
+#### 8.1.4 `useMaskOperations.ts` — setMaskData & onSaveMask
+
+**文件**: [annotator-frontend/src/composables/left-panel/useMaskOperations.ts](annotator-frontend/src/composables/left-panel/useMaskOperations.ts)
+
+**`setMaskData()`**：新增 `hasLayer4` 判断，处理 layer4 的 NIfTI 加载或初始化：
+
+```ts
+// 新增
+const hasLayer4 = Number(caseDetail.output.mask_layer4_nii_size || 0) > 0;
+
+if (hasLayer1 || hasLayer2 || hasLayer3 || hasLayer4) {
+    // ...
+    if (hasLayer4) {
+        const voxels = await useNiftiVoxelData(caseDetail.output.mask_layer4_nii_path!);
+        if (voxels) layerBuffers.set('layer4', voxels);
+    } else {
+        await sendInitMaskToBackend("layer4");   // ← 新增初始化分支
+    }
+} else {
+    // 全新 case，4 层都初始化
+    await sendInitMaskToBackend("layer1");
+    await sendInitMaskToBackend("layer2");
+    await sendInitMaskToBackend("layer3");
+    await sendInitMaskToBackend("layer4");   // ← 新增
+}
+```
+
+**`onSaveMask()`**：类型扩展，支持 layer4：
+
+```ts
+// 旧
+const onSaveMask = async (flag: boolean, layerId: 'layer1' | 'layer2' | 'layer3' = 'layer1')
+
+// 新
+const onSaveMask = async (flag: boolean, layerId: 'layer1' | 'layer2' | 'layer3' | 'layer4' = 'layer1')
+```
+
+---
+
+#### 8.1.5 `plugins/api/masks.ts` — useSaveMasks 类型扩展
+
+**文件**: [annotator-frontend/src/plugins/api/masks.ts](annotator-frontend/src/plugins/api/masks.ts)
+
+```ts
+// 旧
+export async function useSaveMasks(
+    case_id: string | number,
+    layer_id: 'layer1' | 'layer2' | 'layer3' = 'layer1'
+)
+
+// 新
+export async function useSaveMasks(
+    case_id: string | number,
+    layer_id: 'layer1' | 'layer2' | 'layer3' | 'layer4' = 'layer1'  // ← 新增 layer4
+)
+```
+
+---
+
+### 8.2 后端改动
+
+#### 8.2.1 `utils/setup.py` — Config.OUTPUTS
+
+**文件**: [annotator-backend/utils/setup.py](annotator-backend/utils/setup.py)
+
+`OUTPUTS` 列表新增 `"mask-layer4-nii"`：
+
+```python
+# 旧
+OUTPUTS = ["mask-meta-json", "mask-layer1-nii", "mask-layer2-nii", "mask-layer3-nii", "mask-obj", "mask-glb"]
+
+# 新
+OUTPUTS = ["mask-meta-json", "mask-layer1-nii", "mask-layer2-nii", "mask-layer3-nii",
+           "mask-layer4-nii",   # ← 新增
+           "mask-obj", "mask-glb"]
+```
+
+`main.py` 中的 `/api/tool-config` 端点通过 `for idx, output_type in enumerate(Config.OUTPUTS)` 遍历此列表自动创建对应的输出目录和空文件，因此只需修改此常量即可。
+
+---
+
+#### 8.2.2 `models/db_model.py` — CaseOutput 表新增字段
+
+**文件**: [annotator-backend/models/db_model.py](annotator-backend/models/db_model.py)
+
+`CaseOutput` 模型新增两个列：
+
+```python
+class CaseOutput(Base):
+    # ... layer1-3 字段 ...
+    mask_layer4_nii_path = Column(String, nullable=True)   # ← 新增
+    mask_layer4_nii_size = Column(Integer, nullable=True)  # ← 新增
+```
+
+> **注意**：字段新增后需执行数据库迁移（或删除旧 `.db` 文件重新初始化）才能生效。
+
+---
+
+#### 8.2.3 `main.py` — /api/tool-config 输出记录创建
+
+**文件**: [annotator-backend/main.py](annotator-backend/main.py) [L209-232](annotator-backend/main.py#L209-L232)
+
+创建 `CaseOutput` 时，新增 `mask_layer4_nii_path` 和 `mask_layer4_nii_size` 字段（通过 `Config.OUTPUTS` 循环自动从 `file_info` 中取值）：
+
+```python
+case_output = CaseOutput(
+    case_id=case.id,
+    # ...
+    mask_layer4_nii_path=file_info.get("mask-layer4-nii", {}).get("path"),   # ← 新增
+    mask_layer4_nii_size=file_info.get("mask-layer4-nii", {}).get("size"),   # ← 新增
+    # ...
+)
+```
+
+---
+
+#### 8.2.4 `router/tumour_segmentation.py` — layers 验证列表 & cases 响应
+
+**文件**: [annotator-backend/router/tumour_segmentation.py](annotator-backend/router/tumour_segmentation.py)
+
+**验证列表** [L19](annotator-backend/router/tumour_segmentation.py#L19)：`layer4` 加入合法列表，被 `/api/mask/init-layers` 和 `/api/mask/replace` 复用：
+
+```python
+# 旧
+layers = ["layer1", "layer2", "layer3"]
+
+# 新
+layers = ["layer1", "layer2", "layer3", "layer4"]  # ← 新增 layer4
+```
+
+**`/api/cases` 响应** [L72-79](annotator-backend/router/tumour_segmentation.py#L72-L79)：返回 layer4 的路径和大小：
+
+```python
+"mask_layer4_nii_path": case.output.mask_layer4_nii_path if case.output else None,  # ← 新增
+"mask_layer4_nii_size": case.output.mask_layer4_nii_size if case.output else None,  # ← 新增
+```
+
+> ✅ L78-79 已确认正确引用 `case.output.mask_layer4_nii_path / mask_layer4_nii_size`。
+
+---
+
+### 8.3 新增 Layer 的改动检查清单
+
+每次新增一个 Layer 时，需要改动的完整清单：
+
+| 文件 | 改动内容 |
+|------|---------|
+| [useLayerChannel.ts](annotator-frontend/src/composables/left-panel/useLayerChannel.ts) | `LAYER_CONFIGS` 追加新 layer 条目 |
+| [LeftPanelCore.vue](annotator-frontend/src/components/viewer/LeftPanelCore.vue) | `NrrdTools` 构造参数 `layers` 追加新 layer id |
+| [models/case.ts](annotator-frontend/src/models/case.ts) | `IOutput` 追加 `mask_layerN_nii_path` 和 `mask_layerN_nii_size` |
+| [useMaskOperations.ts](annotator-frontend/src/composables/left-panel/useMaskOperations.ts) | `setMaskData()` 追加 `hasLayerN` 逻辑；`onSaveMask()` 类型追加新 layer |
+| [plugins/api/masks.ts](annotator-frontend/src/plugins/api/masks.ts) | `useSaveMasks()` 类型追加新 layer |
+| [utils/setup.py](annotator-backend/utils/setup.py) | `Config.OUTPUTS` 追加 `"mask-layerN-nii"` |
+| [models/db_model.py](annotator-backend/models/db_model.py) | `CaseOutput` 追加 `mask_layerN_nii_path` / `mask_layerN_nii_size` 列 |
+| [main.py](annotator-backend/main.py) | `CaseOutput` 创建时追加新字段（若 OUTPUTS 循环覆盖则自动处理） |
+| [router/tumour_segmentation.py](annotator-backend/router/tumour_segmentation.py) | `layers` 验证列表追加；`/api/cases` 响应追加 layer4 字段 |

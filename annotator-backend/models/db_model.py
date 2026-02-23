@@ -86,6 +86,8 @@ class CaseOutput(Base):
     mask_layer2_nii_size = Column(Integer, nullable=True)
     mask_layer3_nii_path = Column(String, nullable=True)
     mask_layer3_nii_size = Column(Integer, nullable=True)
+    mask_layer4_nii_path = Column(String, nullable=True)
+    mask_layer4_nii_size = Column(Integer, nullable=True)
     
     # 3D mesh output
     # Config.OUTPUTS[4]: "mask-obj"

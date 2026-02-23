@@ -36,7 +36,7 @@ export async function useReplaceMask(body: IReplaceMask) {
  */
 export async function useSaveMasks(
     case_id: string | number,
-    layer_id: 'layer1' | 'layer2' | 'layer3' = 'layer1'
+    layer_id: 'layer1' | 'layer2' | 'layer3' | 'layer4' = 'layer1'
 ) {
     const result = http.get<{ success: boolean; message: string; layer_id: string }>(
         "/mask/save-gltf",

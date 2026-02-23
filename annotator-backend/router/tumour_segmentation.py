@@ -16,6 +16,7 @@ from database.database import get_db
 
 router = APIRouter()
 
+layers = ["layer1", "layer2", "layer3", "layer4"]
 
 @router.websocket('/ws/{case_id}')
 async def websocket_endpoint(websocket: WebSocket, case_id: str):
@@ -74,6 +75,8 @@ async def get_cases_infos(auth: UserAuth, db: Session = Depends(get_db)):
                 "mask_layer2_nii_size": case.output.mask_layer2_nii_size if case.output else None,
                 "mask_layer3_nii_path": case.output.mask_layer3_nii_path if case.output else None,
                 "mask_layer3_nii_size": case.output.mask_layer3_nii_size if case.output else None,
+                "mask_layer4_nii_path": case.output.mask_layer4_nii_path if case.output else None,
+                "mask_layer4_nii_size": case.output.mask_layer4_nii_size if case.output else None,
                 # Config.OUTPUTS[4]: mask-obj
                 "mask_obj_path": case.output.mask_obj_path if case.output else None,
                 "mask_obj_size": case.output.mask_obj_size if case.output else None,
@@ -146,7 +149,7 @@ async def init_mask(mask_layer: model.MaskInitRequest, db: Session = Depends(get
 
     # Step 2: Create empty NIfTI file for the specified layer
     # Validate layerId
-    if mask_layer.layerId not in ["layer1", "layer2", "layer3"]:
+    if mask_layer.layerId not in layers:
         raise HTTPException(status_code=400, detail="Invalid layerId. Must be layer1, layer2, or layer3")
 
     # Get the NIfTI path for this layer from database
@@ -202,8 +205,8 @@ async def replace_mask(mask_update: model.MaskSliceUpdate, db: Session = Depends
         raise HTTPException(status_code=404, detail="CaseOutput not found")
 
     # Validate layerId
-    if mask_update.layerId not in ["layer1", "layer2", "layer3"]:
-        raise HTTPException(status_code=400, detail="Invalid layerId. Must be layer1, layer2, or layer3")
+    if mask_update.layerId not in layers:
+        raise HTTPException(status_code=400, detail="Invalid layerId. Must be layer1, layer2, layer3, or layer4")
 
     # Get the NIfTI path for this layer from database
     nii_path_attr = f"mask_{mask_update.layerId}_nii_path"

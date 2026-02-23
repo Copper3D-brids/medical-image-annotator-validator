@@ -197,9 +197,10 @@ function initCopper() {
             alpha: true,
         }
     );
-
-    // nrrdTools = new Copper.NrrdTools(canvasContainer.value as HTMLDivElement, {layers: ["layer1", "layer2", "layer3", "layer4"] });
-    nrrdTools = new Copper.NrrdTools(canvasContainer.value as HTMLDivElement);
+    
+    // setup nrrdTools with 4 layers for segmentation masks
+    nrrdTools = new Copper.NrrdTools(canvasContainer.value as HTMLDivElement, {layers: ["layer1", "layer2", "layer3", "layer4"] });
+    // nrrdTools = new Copper.NrrdTools(canvasContainer.value as HTMLDivElement);
     nrrdTools.setDisplaySliceIndexPanel(
         sliceIndexContainer.value as HTMLDivElement
     );

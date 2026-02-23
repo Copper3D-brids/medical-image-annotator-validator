@@ -116,8 +116,9 @@ export function useMaskOperations(deps: IMaskOperationsDeps) {
         const hasLayer1 = Number(caseDetail.output.mask_layer1_nii_size || 0) > 0;
         const hasLayer2 = Number(caseDetail.output.mask_layer2_nii_size || 0) > 0;
         const hasLayer3 = Number(caseDetail.output.mask_layer3_nii_size || 0) > 0;
+        const hasLayer4 = Number(caseDetail.output.mask_layer4_nii_size || 0) > 0;
 
-        if (hasLayer1 || hasLayer2 || hasLayer3) {
+        if (hasLayer1 || hasLayer2 || hasLayer3 || hasLayer4) {
             // Load NIfTI masks using the new Phase 0 API
             switchAnimationStatus(loadingContainer.value!, progress.value!, "flex", "Loading NIfTI mask layers...");
 
@@ -142,6 +143,12 @@ export function useMaskOperations(deps: IMaskOperationsDeps) {
             } else {
                 await sendInitMaskToBackend("layer3");
             }
+            if (hasLayer4) {
+                const voxels = await useNiftiVoxelData(caseDetail.output.mask_layer4_nii_path!);
+                if (voxels) layerBuffers.set('layer4', voxels);
+            } else {
+                await sendInitMaskToBackend("layer4");
+            }
 
             if (layerBuffers.size > 0) {
                 nrrdTools.value!.setMasksFromNIfTI(layerBuffers, loadBarMain.value);
@@ -156,6 +163,7 @@ export function useMaskOperations(deps: IMaskOperationsDeps) {
             await sendInitMaskToBackend("layer1");
             await sendInitMaskToBackend("layer2");
             await sendInitMaskToBackend("layer3");
+            await sendInitMaskToBackend("layer4");
             setTimeout(() => {
                 switchAnimationStatus(loadingContainer.value!, progress.value!, "none");
             }, 1000);
@@ -212,7 +220,7 @@ export function useMaskOperations(deps: IMaskOperationsDeps) {
      * @param flag - Whether to proceed with save
      * @param layerId - Layer to convert ('layer1', 'layer2', or 'layer3'), defaults to 'layer1'
      */
-    const onSaveMask = async (flag: boolean, layerId: 'layer1' | 'layer2' | 'layer3' = 'layer1') => {
+    const onSaveMask = async (flag: boolean, layerId: 'layer1' | 'layer2' | 'layer3' | 'layer4' = 'layer1') => {
         if (flag) {
             // Skip expensive hasLayerData check to avoid UI blocking
             // Backend will handle empty data gracefully

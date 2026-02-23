@@ -34,10 +34,16 @@ export interface ChannelConfig {
 /**
  * Layer configurations
  */
+// export const LAYER_CONFIGS: LayerConfig[] = [
+//     { id: 'layer1', name: 'Layer 1' },  // Green
+//     { id: 'layer2', name: 'Layer 2', disabledChannels: [2, 3, 4, 5, 6, 7, 8] },  // Blue
+//     { id: 'layer3', name: 'Layer 3', disable: true },  // Orange
+// ];
 export const LAYER_CONFIGS: LayerConfig[] = [
-    { id: 'layer1', name: 'Layer 1' },  // Green
-    { id: 'layer2', name: 'Layer 2', disabledChannels: [2, 3, 4, 5, 6, 7, 8] },  // Blue
-    { id: 'layer3', name: 'Layer 3', disable: true },  // Orange
+    { id: 'layer1', name: 'Layer 1' },
+    { id: 'layer2', name: 'Layer 2' },
+    { id: 'layer3', name: 'Layer 3' },
+    { id: 'layer4', name: 'Layer 4' },
 ];
 
 /**
