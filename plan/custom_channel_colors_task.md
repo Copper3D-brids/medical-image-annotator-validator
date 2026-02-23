@@ -6,7 +6,7 @@
 1. **动态 N-Layer 支持**：把系统从硬编码 3 层升级为支持用户传入任意数量的 layer（≥ 3）
 2. **自定义 Channel 颜色接口**：通过 NrrdTools 公开 API 让用户自定义每层中 channel 的颜色（依赖动态层）
 
-> **Status:** In Progress (A1 ✅, A2 ✅, A3 ✅, A4 ✅, A5 ✅ — Phase A complete)
+> **Status:** Complete (Phase A ✅, Phase B ✅)
 > **Priority:** High
 > **Depends on:** Phase 3 MaskVolume migration (completed)
 
@@ -173,64 +173,96 @@ masterCtx.drawImage(target.canvas, 0, 0); // 合成操作
 
 ---
 
-## Phase B：自定义 Channel 颜色（依赖 Phase A）
+## Phase B：自定义 Channel 颜色（依赖 Phase A）✅
 
-### Task B1：NrrdTools 导出 setChannelColor 接口
+> **Status:** Complete — 所有 Task 均已实现并通过构建和测试验证
 
-- [ ] 新增 `setChannelColor(layerId: string, channel: ChannelValue, color: RGBAColor): void`
-  - 调用对应 layer 的 `MaskVolume.setChannelColor(channel, color)`
-  - 修改后调用 `reloadMasksFromVolume()` 触发重新渲染
-- [ ] 新增 `getChannelColor(layerId: string, channel: ChannelValue): RGBAColor`
+### Task B1：基础工具函数 + MaskVolume 修复 ✅
 
-**完成标准**: `nrrdTools.setChannelColor('layer1', 1, { r: 255, g: 0, b: 0, a: 153 })` 立即生效
+- [x] `types.ts` 添加 `rgbaToHex()` 和 `rgbaToCss()` 颜色转换工具函数
+- [x] `core/index.ts` 和 `ts/index.ts` 导出新函数
+- [x] 修复 `MaskVolume.setChannelColor()` 校验：`channel >= this.numChannels` → `channel > 8`（label 范围 0-8）
+- [x] `buildRgbToChannelMap()` 从 static 改为 instance 方法，使用 `this.colorMap` 而非全局 `MASK_CHANNEL_COLORS`
+- [x] 新增 `resetChannelColors(channel?)` 和 `getColorMap()` 方法
 
----
+### Task B2：EraserTool 颜色同步 ✅
 
-### Task B2：批量设置颜色接口
-
-- [ ] 新增 `setChannelColors(layerId: string, colorMap: Partial<ChannelColorMap>): void`（一次 reload）
-- [ ] 新增 `setAllLayersChannelColor(channel: ChannelValue, color: RGBAColor): void`（一次 reload）
-
----
-
-### Task B3：重置颜色接口
-
-- [ ] 新增 `resetChannelColors(layerId?: string): void`
-  - 无参数：重置所有 layer 为 `MASK_CHANNEL_COLORS` 默认值
-  - 指定 layerId：只重置该 layer
-
----
-
-### Task B4：EraserTool 颜色同步
-
-- [ ] 从常量 `MASK_CHANNEL_COLORS[activeChannel]` 改为从当前 layer 的 MaskVolume 动态获取：
+- [x] 从常量 `MASK_CHANNEL_COLORS[activeChannel]` 改为从当前 layer 的 MaskVolume 动态获取：
   `const channelColor = volume.getChannelColor(activeChannel);`
 
----
+### Task B3：NrrdTools Brush 颜色同步 ✅
 
-### Task B5：GUI 颜色同步
+- [x] 新增 `syncBrushColor()` 私有方法，从 volume 动态获取 hex 颜色
+- [x] `setActiveLayer()` 和 `setActiveChannel()` 使用 `syncBrushColor()` 替代静态 `CHANNEL_HEX_COLORS`
 
-- [ ] `gui.ts` 中画笔颜色改为从 MaskVolume 动态获取
-- [ ] `getActiveChannelHexColor()` 从 MaskVolume 转换
+### Task B4：GUI 颜色同步 ✅
 
----
+- [x] `gui.ts` 中 layer onChange 从 MaskVolume 动态获取颜色
+- [x] `IConfigGUI` 添加 `getVolumeForLayer` 接口
+- [x] NrrdTools setupGUI 传入 `getVolumeForLayer: this.getVolumeForLayer.bind(this)`
 
-### Task B6：颜色变更事件通知（可选）
+### Task B5：NrrdTools 公开颜色 API ✅
 
-- [ ] 新增回调 `onChannelColorChanged?: (layerId: string, channel: ChannelValue, color: RGBAColor) => void`
+- [x] `setChannelColor(layerId, channel, color)` — 单个 layer 单个 channel
+- [x] `getChannelColor(layerId, channel)` — 获取 RGBA 颜色
+- [x] `getChannelHexColor(layerId, channel)` — 获取 Hex 字符串
+- [x] `getChannelCssColor(layerId, channel)` — 获取 CSS rgba() 字符串
+- [x] `setChannelColors(layerId, colorMap)` — 批量设置
+- [x] `setAllLayersChannelColor(channel, color)` — 所有 layer 同一 channel
+- [x] `resetChannelColors(layerId?, channel?)` — 重置为默认颜色
+
+### Task B6：Vue 组件动态颜色 ✅
+
+- [x] `useLayerChannel.ts` 添加 `colorVersion` ref + `dynamicChannelConfigs` computed + `refreshChannelColors()` action
+- [x] `activeChannelColor` 从 volume 动态获取
+- [x] `LayerChannelSelector.vue` 使用 `dynamicChannelConfigs` 替代静态 `CHANNEL_CONFIGS`
+
+### Task B7：颜色变更事件通知 ✅
+
+- [x] `INrrdStates` 添加 `onChannelColorChanged` 回调
+- [x] `CommToolsData.ts` 提供默认空实现
+- [x] `NrrdTools.setChannelColor()` 调用后触发回调
+
+### 修复的 Bug 汇总
+
+| Bug | 问题 | 修复 |
+|-----|------|------|
+| Bug 0 | `setChannelColor()` 校验 `channel >= numChannels` 但 numChannels=1，导致无法设置任何 channel | 改为 `channel > 8`（label 范围 0-8） |
+| Bug 1 | `buildRgbToChannelMap()` 使用全局颜色，自定义颜色像素无法反向映射 | 改为 instance 方法，使用 `this.colorMap` |
+| Bug 2 | EraserTool 使用全局颜色匹配，无法擦除自定义颜色像素 | 从 volume 获取当前 layer 的颜色 |
+| Bug 3 | Brush/Fill 使用全局 HEX 颜色，画出的颜色与自定义颜色不一致 | 从 volume 动态获取并转 hex |
 
 ---
 
 ## 文件影响范围
 
+### Phase A（动态 N-Layer）
+
 | 文件 | 变更内容 |
 |------|----------|
 | `coreType.ts` | INewMaskData 泛化；IProtected canvases/ctxes 改 Map；INrrdStates.layers string[] |
 | `CommToolsData.ts` | constructor 加 options；layerCanvases Map；getVolumeForLayer 动态化；compositeAllLayers loop |
-| `NrrdTools.ts` | setAllSlices/clear 动态化；getChannelVisibility loop；新增 Phase B 接口 |
+| `NrrdTools.ts` | setAllSlices/clear 动态化；getChannelVisibility loop |
 | `DragSliceTool.ts` | IDragEffectCanvases 改 Map；drawDragSlice/composite loop |
-| `EraserTool.ts` | layerCtx 动态查 Map；composite loop；颜色从 volume 获取 |
-| `gui.ts` | layer 列表动态化；画笔颜色从 volume 获取 |
+| `EraserTool.ts` | layerCtx 动态查 Map；composite loop |
+| `DrawToolCore.ts` | setCurrentLayer/start/applyUndoRedo 改用 layerTargets |
+| `ImageStoreHelper.ts` | getCanvasForLayer 改用 layerTargets |
+
+### Phase B（自定义颜色）
+
+| 文件 | 变更内容 |
+|------|----------|
+| `core/types.ts` | +`rgbaToHex()`, +`rgbaToCss()` |
+| `core/MaskVolume.ts` | 修 `setChannelColor` 校验; `buildRgbToChannelMap` static→instance; +`resetChannelColors()`, +`getColorMap()` |
+| `core/index.ts` | 导出 `rgbaToHex`, `rgbaToCss` |
+| `ts/index.ts` | 导出 `rgbaToHex`, `rgbaToCss` |
+| `NrrdTools.ts` | +`syncBrushColor()`; 修 `setActiveLayer/Channel`; +7 个颜色 API 方法; setupGUI 传 `getVolumeForLayer` |
+| `EraserTool.ts` | channelColor 从 volume 获取 |
+| `coreTools/gui.ts` | IConfigGUI +`getVolumeForLayer`; layer onChange 从 volume 获取颜色 |
+| `coreTools/coreType.ts` | +`onChannelColorChanged` callback |
+| `CommToolsData.ts` | +`onChannelColorChanged` 默认空实现 |
+| `useLayerChannel.ts` | +`dynamicChannelConfigs`, +`refreshChannelColors`; 修 `activeChannelColor` |
+| `LayerChannelSelector.vue` | 使用 `dynamicChannelConfigs` 替代静态 `CHANNEL_CONFIGS` |
 
 ---
 

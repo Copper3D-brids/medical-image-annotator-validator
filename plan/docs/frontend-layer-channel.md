@@ -165,10 +165,13 @@ Template 绑定: [L78](annotator-frontend/src/components/segmentation/LayerChann
 
 ### 4.2 Computed 属性
 
-| 属性 | 行号 | 说明 |
-|------|------|------|
-| `activeChannelColor` | [L87-89](annotator-frontend/src/composables/left-panel/useLayerChannel.ts#L87-L89) | 当前 Channel 的 CSS 颜色 |
-| `activeLayerName` | [L92-95](annotator-frontend/src/composables/left-panel/useLayerChannel.ts#L92-L95) | 当前 Layer 的显示名称 |
+| 属性 | 说明 |
+|------|------|
+| `dynamicChannelConfigs` | 动态 channel 配置列表，反映当前 layer 的 per-layer 自定义颜色（从 NrrdTools 获取） |
+| `activeChannelColor` | 当前 Channel 的 CSS 颜色（从 volume 动态获取，支持自定义颜色） |
+| `activeLayerName` | 当前 Layer 的显示名称 |
+
+> **Phase B 变更**: `activeChannelColor` 和 `dynamicChannelConfigs` 通过 `colorVersion` ref 触发 Vue 响应式更新。当外部调用 `NrrdTools.setChannelColor()` 后，需调用 `refreshChannelColors()` 来递增 `colorVersion`，从而触发 computed 重新计算。
 
 ### 4.3 Action 方法
 
@@ -181,9 +184,9 @@ function setActiveLayer(layerId: Copper.LayerId): void {
 }
 ```
 
-NrrdTools 内部 ([NrrdTools.ts:173-178](annotator-frontend/src/ts/Utils/segmentation/NrrdTools.ts#L173-L178)):
+NrrdTools 内部:
 - 设置 `gui_states.layer = layerId`
-- 更新 `fillColor` / `brushColor` 为当前 channel 的颜色
+- 通过 `syncBrushColor()` 从新 layer 的 MaskVolume 动态获取当前 channel 的颜色，更新 `fillColor` / `brushColor`（支持 per-layer 自定义颜色）
 
 #### `setActiveChannel(channel)` — [L110-113](annotator-frontend/src/composables/left-panel/useLayerChannel.ts#L110-L113)
 
@@ -194,9 +197,9 @@ function setActiveChannel(channel: Copper.ChannelValue): void {
 }
 ```
 
-NrrdTools 内部 ([NrrdTools.ts:183-188](annotator-frontend/src/ts/Utils/segmentation/NrrdTools.ts#L183-L188)):
+NrrdTools 内部:
 - 设置 `gui_states.activeChannel = channel`
-- 从 `CHANNEL_HEX_COLORS[channel]` 获取颜色，更新 `fillColor` / `brushColor`
+- 通过 `syncBrushColor()` 从当前 layer 的 MaskVolume 动态获取颜色，更新 `fillColor` / `brushColor`（支持自定义颜色）
 
 #### `toggleLayerVisibility(layerId)` — [L118-122](annotator-frontend/src/composables/left-panel/useLayerChannel.ts#L118-L122)
 
@@ -244,9 +247,13 @@ NrrdTools 内部 ([NrrdTools.ts:222-227](annotator-frontend/src/ts/Utils/segment
 | `layer2` | Layer 2 | `#2196F3` (Blue) |
 | `layer3` | Layer 3 | `#FF9800` (Orange) |
 
-#### CHANNEL_CONFIGS — [L44-53](annotator-frontend/src/composables/left-panel/useLayerChannel.ts#L44-L53)
+#### CHANNEL_CONFIGS（静态默认，作为 fallback）
 
-Channel 1-8，颜色来自 `Copper.CHANNEL_COLORS`（定义在 [core/types.ts:109-119](annotator-frontend/src/ts/Utils/segmentation/core/types.ts#L109-L119)）
+Channel 1-8，默认颜色来自 `Copper.CHANNEL_COLORS`（定义在 [core/types.ts](annotator-frontend/src/ts/Utils/segmentation/core/types.ts)）
+
+#### dynamicChannelConfigs（运行时动态，优先使用）
+
+Phase B 新增。Computed 属性，从当前 layer 的 MaskVolume 动态获取 channel 颜色。UI 组件（`LayerChannelSelector.vue`）已切换为使用 `dynamicChannelConfigs` 而非静态 `CHANNEL_CONFIGS`。
 
 ---
 
@@ -306,10 +313,12 @@ LayerChannelSelector.vue::onSelectLayer(layerId)               [L184-189]
     ↓
 useLayerChannel::setActiveLayer(layerId)                       [L102-105]
     ├─ activeLayer.value = layerId                             ← Vue 响应式更新
-    └─ nrrdTools.setActiveLayer(layerId)                       [NrrdTools.ts:173-178]
+    └─ nrrdTools.setActiveLayer(layerId)
         ├─ gui_states.layer = layerId
-        ├─ gui_states.fillColor = CHANNEL_HEX_COLORS[activeChannel]
-        └─ gui_states.brushColor = CHANNEL_HEX_COLORS[activeChannel]
+        └─ syncBrushColor()                                    ← 从 volume 动态获取颜色
+            ├─ volume.getChannelColor(activeChannel) → rgbaToHex()
+            ├─ gui_states.fillColor = hex
+            └─ gui_states.brushColor = hex
 ```
 
 ### 5.4 选择活跃 Channel
@@ -322,10 +331,12 @@ LayerChannelSelector.vue::onSelectChannel(channel)             [L191-194]
     ↓
 useLayerChannel::setActiveChannel(channel)                     [L110-113]
     ├─ activeChannel.value = channel                           ← Vue 响应式更新
-    └─ nrrdTools.setActiveChannel(channel)                     [NrrdTools.ts:183-188]
+    └─ nrrdTools.setActiveChannel(channel)
         ├─ gui_states.activeChannel = channel
-        ├─ gui_states.fillColor = CHANNEL_HEX_COLORS[channel]
-        └─ gui_states.brushColor = CHANNEL_HEX_COLORS[channel]
+        └─ syncBrushColor()                                    ← 从 volume 动态获取颜色
+            ├─ volume.getChannelColor(channel) → rgbaToHex()
+            ├─ gui_states.fillColor = hex
+            └─ gui_states.brushColor = hex
 ```
 
 ---

@@ -10,7 +10,7 @@ import {
   IGuiParameterSettings
 } from "./coreType";
 import { DragOperator } from "../DragOperator";
-import { CHANNEL_HEX_COLORS } from "../core";
+import { CHANNEL_HEX_COLORS, rgbaToHex } from "../core";
 
 interface IConfigGUI {
   modeFolder: GUI;
@@ -22,6 +22,7 @@ interface IConfigGUI {
   protectedData: IProtected;
   eraserUrls: string[];
   pencilUrls: string[];
+  getVolumeForLayer: (layer: string) => any;
   mainPreSlices: any;
   removeDragMode: () => void;
   configDragMode: () => void;
@@ -49,7 +50,7 @@ interface IConfigGUI {
     canvas: HTMLCanvasElement,
     paintedImages: IPaintImages
   ) => ImageData;
-  getRestLayer: () => ("layer1" | "layer2" | "layer3")[];
+  getRestLayer: () => string[];
   setIsDrawFalse: (target: number) => void;
 }
 
@@ -131,8 +132,12 @@ function setupGui(configs: IConfigGUI): IGuiParameterSettings {
     .add(configs.gui_states, "layer", ["layer1", "layer2", "layer3"])
     .name("Layer")
     .onChange((_val) => {
-      // Color is determined by the active channel, not the layer
-      const hexColor = CHANNEL_HEX_COLORS[configs.gui_states.activeChannel] || '#00ff00';
+      // Get color from the active layer's volume (respects custom per-layer colors)
+      const channel = configs.gui_states.activeChannel || 1;
+      const volume = configs.getVolumeForLayer(configs.gui_states.layer);
+      const hexColor = volume
+        ? rgbaToHex(volume.getChannelColor(channel))
+        : (CHANNEL_HEX_COLORS[channel] || '#00ff00');
       configs.gui_states.fillColor = hexColor;
       configs.gui_states.brushColor = hexColor;
     });

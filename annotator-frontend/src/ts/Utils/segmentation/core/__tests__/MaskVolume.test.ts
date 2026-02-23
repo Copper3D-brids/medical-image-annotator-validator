@@ -848,7 +848,8 @@ describe('MaskVolume — Color Map Management', () => {
 
   it('should throw on setChannelColor with out-of-range channel', () => {
     const vol = new MaskVolume(4, 4, 4, 2);
-    expect(() => vol.setChannelColor(2, { r: 0, g: 0, b: 0, a: 0 })).toThrow(RangeError);
+    // Channel range is 0-8 (label-based), so 9 and -1 should throw
+    expect(() => vol.setChannelColor(9, { r: 0, g: 0, b: 0, a: 0 })).toThrow(RangeError);
     expect(() => vol.setChannelColor(-1, { r: 0, g: 0, b: 0, a: 0 })).toThrow(RangeError);
   });
 

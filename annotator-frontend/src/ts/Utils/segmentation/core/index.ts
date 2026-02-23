@@ -84,6 +84,8 @@ export {
   MASK_CHANNEL_CSS_COLORS,
   CHANNEL_COLORS,
   CHANNEL_HEX_COLORS,
+  rgbaToHex,
+  rgbaToCss,
 } from './types';
 
 // ── Core volume ────────────────────────────────────────────────────────────

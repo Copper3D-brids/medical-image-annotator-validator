@@ -150,3 +150,22 @@ export const CHANNEL_HEX_COLORS: Readonly<Record<number, string>> = {
   7: '#ff8000',   // Orange
   8: '#8000ff',   // Purple
 };
+
+// ── Color Conversion Utilities ──────────────────────────────────────────
+
+/**
+ * Convert an RGBAColor to a hex string (no alpha), e.g. '#ff0000'.
+ */
+export function rgbaToHex(color: RGBAColor): string {
+  const r = color.r.toString(16).padStart(2, '0');
+  const g = color.g.toString(16).padStart(2, '0');
+  const b = color.b.toString(16).padStart(2, '0');
+  return `#${r}${g}${b}`;
+}
+
+/**
+ * Convert an RGBAColor to a CSS rgba() string, e.g. 'rgba(255,0,0,1.00)'.
+ */
+export function rgbaToCss(color: RGBAColor): string {
+  return `rgba(${color.r},${color.g},${color.b},${(color.a / 255).toFixed(2)})`;
+}

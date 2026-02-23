@@ -247,6 +247,7 @@ interface INrrdStates {
     clearFlag: boolean
   ) => void;
   onClearLayerVolume: (layerId: string) => void;
+  onChannelColorChanged: (layerId: string, channel: number, color: { r: number; g: number; b: number; a: number }) => void;
   getSphere: (sphereOrigin: number[], sphereRadius: number) => void;
   getCalculateSpherePositions: (tumourSphereOrigin: ICommXYZ | null, skinSphereOrigin: ICommXYZ | null, ribSphereOrigin: ICommXYZ | null, nippleSphereOrigin: ICommXYZ | null, aixs: "x" | "y" | "z") => void,
   drawStartPos: ICommXY;

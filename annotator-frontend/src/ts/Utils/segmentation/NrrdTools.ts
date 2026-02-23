@@ -19,8 +19,8 @@ import {
 } from "./coreTools/coreType";
 import { DragOperator } from "./DragOperator";
 import { DrawToolCore } from "./DrawToolCore";
-import { MaskVolume, CHANNEL_HEX_COLORS } from "./core";
-import type { ChannelValue } from "./core";
+import { MaskVolume, CHANNEL_HEX_COLORS, rgbaToHex, rgbaToCss } from "./core";
+import type { ChannelValue, RGBAColor, ChannelColorMap } from "./core";
 
 /**
  * Core NRRD annotation tool for medical image segmentation.
@@ -147,6 +147,7 @@ export class NrrdTools extends DrawToolCore {
       storeImageToLayer: this.storeImageToLayer,
       getRestLayer: this.getRestLayer,
       setIsDrawFalse: this.setIsDrawFalse,
+      getVolumeForLayer: this.getVolumeForLayer.bind(this),
     };
     this.guiParameterSettings = setupGui(guiOptions);
   }
@@ -172,9 +173,7 @@ export class NrrdTools extends DrawToolCore {
    */
   setActiveLayer(layerId: string): void {
     this.gui_states.layer = layerId;
-    const hexColor = CHANNEL_HEX_COLORS[this.gui_states.activeChannel] || '#00ff00';
-    this.gui_states.fillColor = hexColor;
-    this.gui_states.brushColor = hexColor;
+    this.syncBrushColor();
   }
 
   /**
@@ -182,9 +181,26 @@ export class NrrdTools extends DrawToolCore {
    */
   setActiveChannel(channel: ChannelValue): void {
     this.gui_states.activeChannel = channel;
-    const hexColor = CHANNEL_HEX_COLORS[channel] || '#00ff00';
-    this.gui_states.fillColor = hexColor;
-    this.gui_states.brushColor = hexColor;
+    this.syncBrushColor();
+  }
+
+  /**
+   * Sync brush/fill color from the active layer's volume color map.
+   * Falls back to global CHANNEL_HEX_COLORS if volume not available.
+   */
+  private syncBrushColor(): void {
+    const channel = this.gui_states.activeChannel || 1;
+    const layer = this.gui_states.layer;
+    const volume = this.protectedData.maskData.volumes[layer];
+    if (volume) {
+      const hex = rgbaToHex(volume.getChannelColor(channel));
+      this.gui_states.fillColor = hex;
+      this.gui_states.brushColor = hex;
+    } else {
+      const hex = CHANNEL_HEX_COLORS[channel] || '#00ff00';
+      this.gui_states.fillColor = hex;
+      this.gui_states.brushColor = hex;
+    }
   }
 
   /**
@@ -273,6 +289,138 @@ export class NrrdTools extends DrawToolCore {
       return false;
     }
     return volume.hasData();
+  }
+
+  // ── Custom Channel Color API ────────────────────────────────────────────
+
+  /**
+   * Set a custom color for a specific channel in a specific layer.
+   * Only affects this layer; other layers remain unchanged.
+   *
+   * @param layerId  Layer to customize (e.g. 'layer1', 'layer2')
+   * @param channel  Channel label (1-8)
+   * @param color    RGBAColor object { r, g, b, a } (each 0-255)
+   *
+   * @example
+   * ```ts
+   * // Make channel 2 in layer2 orange
+   * nrrdTools.setChannelColor('layer2', 2, { r: 255, g: 128, b: 0, a: 255 });
+   * ```
+   */
+  setChannelColor(layerId: string, channel: number, color: RGBAColor): void {
+    const volume = this.protectedData.maskData.volumes[layerId];
+    if (!volume) {
+      console.warn(`setChannelColor: unknown layer "${layerId}"`);
+      return;
+    }
+    volume.setChannelColor(channel, color);
+    if (layerId === this.gui_states.layer && channel === this.gui_states.activeChannel) {
+      this.syncBrushColor();
+    }
+    this.reloadMasksFromVolume();
+    this.nrrd_states.onChannelColorChanged(layerId, channel, color);
+  }
+
+  /**
+   * Get the current color for a specific channel in a specific layer.
+   *
+   * @param layerId  Layer to query
+   * @param channel  Channel label (1-8)
+   * @returns RGBAColor object (copy, safe to mutate)
+   */
+  getChannelColor(layerId: string, channel: number): RGBAColor {
+    const volume = this.protectedData.maskData.volumes[layerId];
+    if (!volume) {
+      return { r: 0, g: 255, b: 0, a: 255 };
+    }
+    return volume.getChannelColor(channel);
+  }
+
+  /**
+   * Get a hex color string for a channel in a layer (e.g. '#ff8000').
+   */
+  getChannelHexColor(layerId: string, channel: number): string {
+    return rgbaToHex(this.getChannelColor(layerId, channel));
+  }
+
+  /**
+   * Get a CSS rgba() color string for a channel in a layer.
+   */
+  getChannelCssColor(layerId: string, channel: number): string {
+    return rgbaToCss(this.getChannelColor(layerId, channel));
+  }
+
+  /**
+   * Batch-set multiple channel colors for a single layer (single re-render).
+   *
+   * @param layerId  Layer to customize
+   * @param colorMap Partial map of channel -> RGBAColor
+   *
+   * @example
+   * ```ts
+   * nrrdTools.setChannelColors('layer2', {
+   *   2: { r: 255, g: 128, b: 0, a: 255 },
+   *   3: { r: 100, g: 200, b: 50, a: 255 },
+   * });
+   * ```
+   */
+  setChannelColors(layerId: string, colorMap: Partial<ChannelColorMap>): void {
+    const volume = this.protectedData.maskData.volumes[layerId];
+    if (!volume) {
+      console.warn(`setChannelColors: unknown layer "${layerId}"`);
+      return;
+    }
+    for (const [ch, color] of Object.entries(colorMap)) {
+      volume.setChannelColor(Number(ch), color as RGBAColor);
+    }
+    if (layerId === this.gui_states.layer) {
+      this.syncBrushColor();
+    }
+    this.reloadMasksFromVolume();
+  }
+
+  /**
+   * Set the same color for a specific channel across ALL layers (single re-render).
+   *
+   * @param channel  Channel label (1-8)
+   * @param color    RGBAColor object
+   */
+  setAllLayersChannelColor(channel: number, color: RGBAColor): void {
+    for (const layerId of this.nrrd_states.layers) {
+      const volume = this.protectedData.maskData.volumes[layerId];
+      if (volume) {
+        volume.setChannelColor(channel, color);
+      }
+    }
+    if (channel === this.gui_states.activeChannel) {
+      this.syncBrushColor();
+    }
+    this.reloadMasksFromVolume();
+  }
+
+  /**
+   * Reset channel colors to system defaults.
+   *
+   * @param layerId  Optional. If omitted, resets all layers.
+   * @param channel  Optional. If omitted, resets all channels in the layer(s).
+   *
+   * @example
+   * ```ts
+   * nrrdTools.resetChannelColors('layer2', 2);  // Reset only ch2 in layer2
+   * nrrdTools.resetChannelColors('layer2');       // Reset all channels in layer2
+   * nrrdTools.resetChannelColors();               // Reset all layers
+   * ```
+   */
+  resetChannelColors(layerId?: string, channel?: number): void {
+    const layers = layerId ? [layerId] : this.nrrd_states.layers;
+    for (const lid of layers) {
+      const volume = this.protectedData.maskData.volumes[lid];
+      if (volume) {
+        volume.resetChannelColors(channel);
+      }
+    }
+    this.syncBrushColor();
+    this.reloadMasksFromVolume();
   }
 
   // ── Keyboard & History API ──────────────────────────────────────────────

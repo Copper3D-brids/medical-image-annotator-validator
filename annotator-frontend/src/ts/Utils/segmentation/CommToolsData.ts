@@ -99,6 +99,7 @@ export class CommToolsData {
       clearFlag: boolean
     ) => { },
     onClearLayerVolume: (layerId: string) => { },
+    onChannelColorChanged: () => { },
     getSphere: (sphereOrigin: number[], sphereRadius: number) => { },
     getCalculateSpherePositions: (tumourSphereOrigin: ICommXYZ | null, skinSphereOrigin: ICommXYZ | null, ribSphereOrigin: ICommXYZ | null, nippleSphereOrigin: ICommXYZ | null, aixs: "x" | "y" | "z") => { },
     drawStartPos: { x: 1, y: 1 },

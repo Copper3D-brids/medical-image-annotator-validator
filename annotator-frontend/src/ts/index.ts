@@ -42,7 +42,7 @@ import {
 } from "./types/types";
 
 import { IPaintImage, ICommXYZ, IGUIStates, IGuiParameterSettings, INrrdStates } from "./Utils/segmentation/coreTools/coreType";
-import { CHANNEL_COLORS, CHANNEL_HEX_COLORS } from "./Utils/segmentation/core";
+import { CHANNEL_COLORS, CHANNEL_HEX_COLORS, rgbaToHex, rgbaToCss } from "./Utils/segmentation/core";
 import type { LayerId, ChannelValue } from "./Utils/segmentation/core";
 
 import "./css/style.css";
@@ -80,6 +80,8 @@ export {
   removeGuiFolderChilden,
   CHANNEL_COLORS,
   CHANNEL_HEX_COLORS,
+  rgbaToHex,
+  rgbaToCss,
 };
 
 export type {

@@ -2,6 +2,7 @@
  * useLayerChannel Composable
  *
  * Phase 3.5: Layer/Channel Selection UI
+ * Phase B: Dynamic per-layer channel colors
  *
  * Manages layer and channel selection state for the segmentation module.
  * Provides reactive state for Vue components and syncs with NrrdTools.
@@ -24,7 +25,7 @@ export interface LayerConfig {
 export interface ChannelConfig {
     value: Copper.ChannelValue;
     name: string;
-    color: string;  // From CHANNEL_COLORS
+    color: string;  // From CHANNEL_COLORS or custom per-layer color
 }
 
 // ===== Constants =====
@@ -39,7 +40,8 @@ export const LAYER_CONFIGS: LayerConfig[] = [
 ];
 
 /**
- * Channel configurations (channels 1-8, channel 0 is transparent/erased)
+ * Static default channel configurations (channels 1-8, channel 0 is transparent/erased).
+ * Used as fallback when NrrdTools is not available.
  */
 export const CHANNEL_CONFIGS: ChannelConfig[] = [
     { value: 1 as Copper.ChannelValue, name: 'Ch 1', color: Copper.CHANNEL_COLORS[1] },
@@ -81,10 +83,37 @@ export function useLayerChannel(deps: ILayerChannelDeps) {
     /** Whether the controls are enabled (after images loaded) */
     const controlsEnabled = ref(false);
 
+    /**
+     * Color version counter — incremented to trigger re-computation
+     * of dynamic channel colors (Vue can't track MaskVolume mutations).
+     */
+    const colorVersion = ref(0);
+
     // ===== Computed =====
 
-    /** Get display color for the active channel */
+    /**
+     * Dynamic channel configs reflecting per-layer custom colors.
+     * Automatically re-evaluates when activeLayer, colorVersion, or nrrdTools change.
+     */
+        
+    const dynamicChannelConfigs: ComputedRef<ChannelConfig[]> = computed(() => {
+        colorVersion.value; // trigger reactivity on color changes
+        
+        return ([1, 2, 3, 4, 5, 6, 7, 8] as Copper.ChannelValue[]).map(val => ({
+            value: val,
+            name: `Ch ${val}`,
+            color: deps.nrrdTools.value
+                ? deps.nrrdTools.value.getChannelCssColor(activeLayer.value, val)
+                : Copper.CHANNEL_COLORS[val],
+        }));
+    });
+
+    /** Get display color for the active channel (dynamic, from volume) */
     const activeChannelColor: ComputedRef<string> = computed(() => {
+        colorVersion.value; // trigger reactivity on color changes
+        if (deps.nrrdTools.value) {
+            return deps.nrrdTools.value.getChannelCssColor(activeLayer.value, activeChannel.value);
+        }
         return Copper.CHANNEL_COLORS[activeChannel.value] || 'rgba(0,0,0,0)';
     });
 
@@ -145,16 +174,28 @@ export function useLayerChannel(deps: ILayerChannelDeps) {
     }
 
     /**
+     * Force re-evaluation of dynamic channel colors.
+     * Call this after using NrrdTools.setChannelColor() externally.
+     */
+    function refreshChannelColors(): void {
+        colorVersion.value++;
+    }
+
+    /**
      * Sync state from NrrdTools (called after initialization)
      */
     function syncFromManager(): void {
         const tools = deps.nrrdTools.value;
         if (!tools) return;
 
+        // set channel color
+        tools.setChannelColor("layer2", 1, {r:116,g:50,b:32,a:255})
+        
         // Sync active layer and channel
         activeLayer.value = tools.getActiveLayer();
         activeChannel.value = tools.getActiveChannel() as Copper.ChannelValue;
 
+        
         // Sync visibility states
         const layerVis = tools.getLayerVisibility();
         const channelVis = tools.getChannelVisibility();
@@ -166,6 +207,9 @@ export function useLayerChannel(deps: ILayerChannelDeps) {
                 channelVisibility.value[layerId] = { ...channelVis[layerId] };
             }
         });
+
+        // Also refresh channel colors from volumes
+        refreshChannelColors();
     }
 
     // ===== Return =====
@@ -179,6 +223,7 @@ export function useLayerChannel(deps: ILayerChannelDeps) {
         controlsEnabled,
 
         // Computed
+        dynamicChannelConfigs,
         activeChannelColor,
         activeLayerName,
 
@@ -189,6 +234,7 @@ export function useLayerChannel(deps: ILayerChannelDeps) {
         toggleChannelVisibility,
         enableControls,
         disableControls,
+        refreshChannelColors,
         syncFromManager,
 
         // Configs (for UI rendering)

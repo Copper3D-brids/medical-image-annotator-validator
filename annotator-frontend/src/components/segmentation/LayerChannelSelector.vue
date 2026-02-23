@@ -56,7 +56,7 @@
 
       <div class="channel-grid">
         <div
-          v-for="channel in CHANNEL_CONFIGS"
+          v-for="channel in dynamicChannelConfigs"
           :key="channel.value"
           class="channel-card"
           :class="{
@@ -105,7 +105,7 @@
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import emitter from "@/plugins/custom-emitter";
 import * as Copper from "@/ts/index";
-import { useLayerChannel, LAYER_CONFIGS, CHANNEL_CONFIGS, type ChannelConfig } from "@/composables/left-panel";
+import { useLayerChannel, LAYER_CONFIGS, type ChannelConfig } from "@/composables/left-panel";
 
 // ===== NrrdTools ref (received via emitter) =====
 const nrrdTools = ref<Copper.NrrdTools | undefined>();
@@ -117,6 +117,7 @@ const {
   layerVisibility,
   channelVisibility,
   controlsEnabled,
+  dynamicChannelConfigs,
   setActiveLayer,
   setActiveChannel,
   toggleLayerVisibility,
@@ -139,7 +140,7 @@ const isChannelDisabled = (val: number) => {
 // Style for active badge
 const activeBadgeStyle = computed(() => {
   if (!controlsEnabled.value) return {};
-  const conf = CHANNEL_CONFIGS.find(c => c.value === activeChannel.value);
+  const conf = dynamicChannelConfigs.value.find(c => c.value === activeChannel.value);
   const color = conf?.color.replace(',0.6)', ',1)').replace('rgba', 'rgba') || '#fff';
   return {
     backgroundColor: color,

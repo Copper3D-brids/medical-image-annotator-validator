@@ -79,7 +79,165 @@ protectedData.maskData.volumes = {
 | `getChannelVisibility` | `(): Record<string, Record<number, boolean>>` | [L246-252](annotator-frontend/src/ts/Utils/segmentation/NrrdTools.ts#L246-L252) | 获取所有 Channel 可见性副本 |
 | `hasLayerData` | `(layerId): boolean` | [L270-276](annotator-frontend/src/ts/Utils/segmentation/NrrdTools.ts#L270-L276) | 检查 Layer 是否有非零数据 |
 
-### 2.2 Keyboard & History
+### 2.2 Custom Channel Color API（Phase B）
+
+Per-layer 自定义 channel 颜色。每个 layer 的 MaskVolume 有独立的 `colorMap`，互不影响。
+
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| `setChannelColor` | `(layerId: string, channel: number, color: RGBAColor): void` | 设置指定 layer 指定 channel 的颜色，触发重渲染和 `onChannelColorChanged` 回调 |
+| `getChannelColor` | `(layerId: string, channel: number): RGBAColor` | 获取 RGBA 颜色对象 |
+| `getChannelHexColor` | `(layerId: string, channel: number): string` | 获取 Hex 字符串（如 `#ff8000`） |
+| `getChannelCssColor` | `(layerId: string, channel: number): string` | 获取 CSS rgba() 字符串（如 `rgba(255,128,0,1.00)`） |
+| `setChannelColors` | `(layerId: string, colorMap: Partial<ChannelColorMap>): void` | 批量设置一个 layer 的多个 channel 颜色（一次 reload） |
+| `setAllLayersChannelColor` | `(channel: number, color: RGBAColor): void` | 所有 layer 的同一 channel 设为相同颜色 |
+| `resetChannelColors` | `(layerId?: string, channel?: number): void` | 重置为 `MASK_CHANNEL_COLORS` 默认颜色 |
+
+**内部机制**:
+- `syncBrushColor()` — 私有方法，从当前 layer 的 volume 动态获取颜色更新 `fillColor`/`brushColor`
+- 在 `setActiveLayer()`、`setActiveChannel()`、`setChannelColor()` 等方法中自动调用
+
+#### 外部使用方式
+
+**前提**: `nrrdTools` 实例已创建，且 `setAllSlices()` 已调用完毕（即图像已加载，MaskVolume 已初始化）。
+ 
+> ⚠️ **重要**: 必须在图像加载完成（`setAllSlices()` 调用后）才能设置颜色，否则 MaskVolume 尚未创建，调用会静默失败（`console.warn`）。
+ 
+---
+
+**场景 1：给某个 Layer 的某个 Channel 设置自定义颜色**
+
+```typescript
+// 将 layer2 的 channel 3 设为橙色
+nrrdTools.setChannelColor('layer2', 3, { r: 255, g: 128, b: 0, a: 255 });
+// 效果：layer2 上所有用 channel 3 画的 mask 变为橙色
+// layer1、layer3 的 channel 3 颜色不受影响
+```
+
+---
+
+**场景 2：批量设置一个 Layer 的多个 Channel 颜色（推荐，只触发一次重渲染）**
+
+```typescript
+nrrdTools.setChannelColors('layer1', {
+  1: { r: 255, g: 0,   b: 0,   a: 255 },   // channel 1 → 红色
+  2: { r: 0,   g: 0,   b: 255, a: 255 },   // channel 2 → 蓝色
+  3: { r: 255, g: 255, b: 0,   a: 255 },   // channel 3 → 黄色
+});
+// 只触发一次 reloadMasksFromVolume()，性能优于多次调用 setChannelColor()
+```
+
+---
+
+**场景 3：所有 Layer 的同一 Channel 使用相同颜色**
+
+```typescript
+// 把所有 layer 的 channel 1 统一改为红色
+nrrdTools.setAllLayersChannelColor(1, { r: 255, g: 0, b: 0, a: 255 });
+```
+
+---
+
+**场景 4：读取当前颜色**
+
+```typescript
+// 读取 layer2 的 channel 3 当前颜色
+const rgba = nrrdTools.getChannelColor('layer2', 3);
+// → { r: 255, g: 128, b: 0, a: 255 }
+
+const hex = nrrdTools.getChannelHexColor('layer2', 3);
+// → "#ff8000"  (用于 canvas fillStyle 或 CSS color)
+
+const css = nrrdTools.getChannelCssColor('layer2', 3);
+// → "rgba(255,128,0,1.00)"  (用于 Vue style binding)
+```
+
+---
+
+**场景 5：重置颜色**
+
+```typescript
+// 重置 layer2 的 channel 3 为默认颜色
+nrrdTools.resetChannelColors('layer2', 3);
+
+// 重置 layer2 的所有 channel 为默认颜色
+nrrdTools.resetChannelColors('layer2');
+
+// 重置所有 layer 的所有 channel 为默认颜色
+nrrdTools.resetChannelColors();
+```
+
+---
+
+**场景 6：设置颜色后通知 Vue UI 刷新**
+
+颜色修改后，canvas 会立即重渲染（`reloadMasksFromVolume()` 自动调用）。
+但 Vue UI 中的 channel 颜色卡片（`LayerChannelSelector.vue`）需要手动触发刷新：
+
+```typescript
+// 在 Vue 组件中，拿到 composable 的 refreshChannelColors
+const { refreshChannelColors } = useLayerChannel({ nrrdTools });
+
+// 设置颜色后调用 refresh，让 Vue UI 同步更新颜色显示
+nrrdTools.setChannelColor('layer2', 3, { r: 255, g: 128, b: 0, a: 255 });
+refreshChannelColors();   // 递增 colorVersion → 触发 dynamicChannelConfigs 重计算
+```
+
+或者监听 `onChannelColorChanged` 回调来自动刷新：
+
+```typescript
+// 在初始化时注册回调（nrrd_states 是 NrrdTools 内部状态，需通过 draw() 选项设置）
+// ⚠️ 目前 onChannelColorChanged 挂载在 nrrd_states 上，暂不支持直接从外部设置
+// 推荐方式：手动在 setChannelColor() 后调用 refreshChannelColors()
+```
+
+---
+
+**场景 7：完整的初始化+颜色设置示例（Vue 组件中）**
+
+```typescript
+// LeftPanelCore.vue 或其他父组件
+import emitter from '@/plugins/custom-emitter';
+
+// 图像加载完成后（onFinishLoadAllCaseImages 事件）
+const nrrdTools = ref<Copper.NrrdTools>();
+
+emitter.on('Core:NrrdTools', (tools) => {
+  nrrdTools.value = tools;
+});
+
+emitter.on('Segmentation:FinishLoadAllCaseImages', () => {
+  // 此时 setAllSlices() 已调用完毕，MaskVolume 已初始化，可以安全设置颜色
+  if (!nrrdTools.value) return;
+
+  // 为 layer1 设置自定义颜色方案
+  nrrdTools.value.setChannelColors('layer1', {
+    1: { r: 255, g: 80,  b: 80,  a: 255 },   // 浅红
+    2: { r: 80,  g: 180, b: 255, a: 255 },   // 浅蓝
+  });
+
+  // layer2 保持默认颜色，无需操作
+});
+```
+
+---
+
+**颜色值范围**
+
+`RGBAColor` 各字段取值 `0-255`（整数）：
+
+```typescript
+interface RGBAColor {
+  r: number;  // 0-255
+  g: number;  // 0-255
+  b: number;  // 0-255
+  a: number;  // 0-255，255 = 完全不透明，0 = 完全透明
+}
+```
+
+Channel `a`（alpha）决定 mask 的不透明度基准值。通常设为 `255`，实际渲染时还会乘以 `gui_states.globalAlpha`（默认 0.6）。
+
+### 2.3 Keyboard & History
 
 | 方法 | 签名 | 行号 | 说明 |
 |------|------|------|------|
@@ -92,7 +250,7 @@ protectedData.maskData.volumes = {
 | `setKeyboardSettings` | `(settings: Partial<IKeyBoardSettings>): void` | [L397-407](annotator-frontend/src/ts/Utils/segmentation/NrrdTools.ts#L397-L407) | 更新键盘快捷键绑定 |
 | `getKeyboardSettings` | `(): IKeyBoardSettings` | [L423-425](annotator-frontend/src/ts/Utils/segmentation/NrrdTools.ts#L423-L425) | 获取当前键盘设置快照 |
 
-### 2.3 Data Loading
+### 2.4 Data Loading
 
 | 方法 | 签名 | 行号 | 说明 |
 |------|------|------|------|
@@ -100,7 +258,7 @@ protectedData.maskData.volumes = {
 | `setMasksData` | `(masksData, loadingBar?): void` | [L521-583](annotator-frontend/src/ts/Utils/segmentation/NrrdTools.ts#L521-L583) | 旧版加载方法（Legacy） |
 | `setMasksFromNIfTI` | `(layerVoxels: Map<string, Uint8Array>, loadingBar?): void` | [L594-635](annotator-frontend/src/ts/Utils/segmentation/NrrdTools.ts#L594-L635) | 从 NIfTI 文件加载 mask 到 MaskVolume |
 
-### 2.4 Display & Rendering
+### 2.5 Display & Rendering
 
 | 方法 | 签名 | 行号 | 说明 |
 |------|------|------|------|
@@ -110,7 +268,7 @@ protectedData.maskData.volumes = {
 | `redrawDisplayCanvas` | `(): void` | [L1371-1396](annotator-frontend/src/ts/Utils/segmentation/NrrdTools.ts#L1371-L1396) | 重绘 contrast 图像到 displayCanvas |
 | `setEmptyCanvasSize` | `(axis?): void` | [L1342-1363](annotator-frontend/src/ts/Utils/segmentation/NrrdTools.ts#L1342-L1363) | 根据 axis 设置 emptyCanvas 尺寸 |
 
-### 2.5 其他 API
+### 2.6 其他 API
 
 | 方法 | 行号 | 说明 |
 |------|------|------|
@@ -201,7 +359,17 @@ getMask: (
 onClearLayerVolume: (layerId: string) => void
 ```
 
-### 4.3 getSphere / getCalculateSpherePositions
+### 4.3 onChannelColorChanged（Phase B 新增）
+
+定义: [coreType.ts](annotator-frontend/src/ts/Utils/segmentation/coreTools/coreType.ts) `INrrdStates`
+
+```ts
+onChannelColorChanged: (layerId: string, channel: number, color: RGBAColor) => void
+```
+
+**调用时机**: `NrrdTools.setChannelColor()` 修改颜色后触发。默认空实现，外部可通过 `nrrd_states` 赋值覆盖。
+
+### 4.4 getSphere / getCalculateSpherePositions
 
 定义: [CommToolsData.ts:102-103](annotator-frontend/src/ts/Utils/segmentation/CommToolsData.ts#L102-L103)
 
@@ -272,11 +440,13 @@ renderLabelSliceInto(
 ): void
 ```
 
-渲染逻辑 [L742-769](annotator-frontend/src/ts/Utils/segmentation/core/MaskVolume.ts#L742-L769):
+渲染逻辑:
 1. 读取 label 值 (0-8)
 2. `label === 0` → 透明 (RGBA 全 0)
 3. `channelVisible && !channelVisible[label]` → 隐藏该 Channel → 透明
-4. 否则 → 从 `MASK_CHANNEL_COLORS` 取颜色，应用 opacity
+4. 否则 → 从 volume 的 `colorMap` 取颜色（支持 per-layer 自定义颜色），应用 opacity
+
+> **Phase B 变更**: 颜色来源从全局 `MASK_CHANNEL_COLORS` 改为每个 volume 实例的 `this.colorMap`。`buildRgbToChannelMap()` 也改为 instance 方法，确保 canvas→volume 写回时使用正确的自定义颜色映射。
 
 ### 5.6 渲染管线完整流程
 
@@ -482,6 +652,8 @@ DrawToolCore.undoLastPainting()
 
 **文件**: [core/types.ts](annotator-frontend/src/ts/Utils/segmentation/core/types.ts)
 
+### 11.1 默认颜色（全局常量）
+
 | Channel | 颜色 | Hex | RGBA |
 |---------|------|-----|------|
 | 0 | 透明 | `#000000` | `(0,0,0,0)` |
@@ -495,6 +667,27 @@ DrawToolCore.undoLastPainting()
 | 8 | 紫色 (Extended) | `#8000ff` | `(128,0,255,255)` |
 
 定义位置:
-- RGBA: [types.ts:94-104](annotator-frontend/src/ts/Utils/segmentation/core/types.ts#L94-L104) `MASK_CHANNEL_COLORS`
-- CSS: [types.ts:109-119](annotator-frontend/src/ts/Utils/segmentation/core/types.ts#L109-L119) `MASK_CHANNEL_CSS_COLORS`
-- Hex: [types.ts:142-152](annotator-frontend/src/ts/Utils/segmentation/core/types.ts#L142-L152) `CHANNEL_HEX_COLORS`
+- RGBA: `MASK_CHANNEL_COLORS`
+- CSS: `MASK_CHANNEL_CSS_COLORS`
+- Hex: `CHANNEL_HEX_COLORS`
+
+### 11.2 颜色转换工具函数（Phase B 新增）
+
+| 函数 | 签名 | 说明 |
+|------|------|------|
+| `rgbaToHex` | `(color: RGBAColor) → string` | 转 Hex 字符串，如 `#ff8000` |
+| `rgbaToCss` | `(color: RGBAColor) → string` | 转 CSS rgba() 字符串，如 `rgba(255,128,0,1.00)` |
+
+### 11.3 Per-Layer 自定义颜色（Phase B）
+
+每个 `MaskVolume` 实例拥有独立的 `colorMap: ChannelColorMap`，在构造时从 `MASK_CHANNEL_COLORS` 深拷贝。通过 `NrrdTools.setChannelColor(layerId, channel, color)` 修改某个 layer 的颜色不会影响其他 layer。
+
+**颜色流转路径**:
+```
+volume.colorMap[channel]
+  ↓ renderLabelSliceInto()     → Canvas 渲染使用 colorMap
+  ↓ buildRgbToChannelMap()     → Canvas→Volume 写回使用 colorMap
+  ↓ EraserTool.getChannelColor → 橡皮擦颜色匹配使用 colorMap
+  ↓ syncBrushColor()           → 画笔颜色从 colorMap 获取
+  ↓ getChannelCssColor()       → Vue UI 从 colorMap 获取显示颜色
+```

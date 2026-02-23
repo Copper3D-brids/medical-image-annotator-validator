@@ -193,17 +193,20 @@ export class MaskVolume {
   // ── Color map management ──────────────────────────────────────────
 
   /**
-   * Update the color for a specific channel.
+   * Update the color for a specific label/channel in the color map.
    *
-   * @param channel Channel index to update.
+   * For label-based volumes (1-channel), the channel parameter refers to
+   * the label value (0-8), not the storage channel index.
+   *
+   * @param channel Label/channel index to update (0-8).
    * @param color   New RGBA color.
    *
-   * @throws {RangeError} If channel is out of range.
+   * @throws {RangeError} If channel is outside valid label range [0, 8].
    */
   setChannelColor(channel: number, color: RGBAColor): void {
-    if (channel < 0 || channel >= this.numChannels) {
+    if (channel < 0 || channel > 8) {
       throw new RangeError(
-        `Invalid channel: ${channel} (volume has ${this.numChannels} channels)`
+        `Invalid channel/label: ${channel} (valid range: 0-8)`
       );
     }
     this.colorMap[channel] = { r: color.r, g: color.g, b: color.b, a: color.a };
@@ -220,6 +223,39 @@ export class MaskVolume {
   getChannelColor(channel: number): RGBAColor {
     const c = this.colorMap[channel] ?? MASK_CHANNEL_COLORS[0];
     return { r: c.r, g: c.g, b: c.b, a: c.a };
+  }
+
+  /**
+   * Reset the color map for one or all labels to defaults.
+   *
+   * @param channel Optional specific label to reset. If omitted, resets all.
+   */
+  resetChannelColors(channel?: number): void {
+    if (channel !== undefined) {
+      const c = MASK_CHANNEL_COLORS[channel];
+      if (c) this.colorMap[channel] = { r: c.r, g: c.g, b: c.b, a: c.a };
+    } else {
+      for (const key of Object.keys(MASK_CHANNEL_COLORS)) {
+        const k = Number(key);
+        const c = MASK_CHANNEL_COLORS[k];
+        this.colorMap[k] = { r: c.r, g: c.g, b: c.b, a: c.a };
+      }
+    }
+  }
+
+  /**
+   * Get a shallow copy of the entire color map.
+   *
+   * @returns A copy of the color map (safe to mutate).
+   */
+  getColorMap(): ChannelColorMap {
+    const copy: ChannelColorMap = {};
+    for (const key of Object.keys(this.colorMap)) {
+      const k = Number(key);
+      const c = this.colorMap[k];
+      copy[k] = { r: c.r, g: c.g, b: c.b, a: c.a };
+    }
+    return copy;
   }
 
   // ── Slice extraction ──────────────────────────────────────────────
@@ -590,7 +626,7 @@ export class MaskVolume {
     }
 
     // Build RGB→channel lookup map for O(1) reverse lookup
-    const rgbToChannel = MaskVolume.buildRgbToChannelMap();
+    const rgbToChannel = this.buildRgbToChannelMap();
 
     const pixels = imageData.data;
 
@@ -662,12 +698,14 @@ export class MaskVolume {
 
   /**
    * Build a Map from RGB packed integer to channel label for reverse lookup.
-   * Uses MASK_CHANNEL_COLORS channels 1-8 (skips 0 = transparent).
+   * Uses this instance's colorMap (channels 1-8, skips 0 = transparent).
+   *
+   * Instance method ensures custom per-layer colors are correctly reverse-mapped.
    */
-  private static buildRgbToChannelMap(): Map<number, number> {
+  private buildRgbToChannelMap(): Map<number, number> {
     const map = new Map<number, number>();
     for (let ch = 1; ch <= 8; ch++) {
-      const color = MASK_CHANNEL_COLORS[ch];
+      const color = this.colorMap[ch] ?? MASK_CHANNEL_COLORS[ch];
       if (color) {
         const key = (color.r << 16) | (color.g << 8) | color.b;
         map.set(key, ch);

@@ -19,10 +19,14 @@ export class EraserTool extends BaseTool {
   createClearArc(): (x: number, y: number, radius: number) => void {
     const clearArc = (x: number, y: number, radius: number) => {
       const activeChannel = this.ctx.gui_states.activeChannel || 1;
-      const channelColor = MASK_CHANNEL_COLORS[activeChannel] ?? MASK_CHANNEL_COLORS[1];
+      // Get color from current layer's volume (respects custom per-layer colors)
+      const layer = this.ctx.gui_states.layer;
+      const volume = this.ctx.protectedData.maskData.volumes[layer];
+      const channelColor = volume
+        ? volume.getChannelColor(activeChannel)
+        : (MASK_CHANNEL_COLORS[activeChannel] ?? MASK_CHANNEL_COLORS[1]);
 
       // Determine current layer context via layerTargets Map
-      const layer = this.ctx.gui_states.layer;
       const target = this.ctx.protectedData.layerTargets.get(layer);
       if (!target) return; // Unknown layer, safe exit
       const layerCtx = target.ctx;
