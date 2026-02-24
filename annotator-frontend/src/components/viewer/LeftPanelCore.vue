@@ -210,10 +210,7 @@ function initCopper() {
     nrrdTools.setPencilIconUrls(cursorUrls);
     // nrrdTools.setMainAreaSize(3);
     
-    // sphere plan b
     toolNrrdStates = nrrdTools.getNrrdToolsSettings();
-    // toolsState.spherePlanB = false;
-
     loadBarMain.value = Copper.loading(loadingGif);
 
     loadingContainer.value = loadBarMain.value.loadingContainer;

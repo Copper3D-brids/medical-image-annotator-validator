@@ -59,7 +59,6 @@ export class CommToolsData {
     contrastNum: 0,
 
     showContrast: false,
-    enableCursorChoose: false,
     isCursorSelect: false,
     cursorPageX: 0,
     cursorPageY: 0,
@@ -228,8 +227,6 @@ export class CommToolsData {
       skipSlicesDic: {},
       currentShowingSlice: undefined,
       mainPreSlices: undefined,
-      Is_Shift_Pressed: false,
-      Is_Ctrl_Pressed: false,
       Is_Draw: false,
       axis: "z",
       maskData: {

@@ -134,30 +134,21 @@ export class DrawToolCore extends CommToolsData {
         const prev = prevMode as string;
         const next = newMode as string;
 
-        // Sync EventRouter mode changes with existing state flags
-        if (next === 'draw') {
-          this.protectedData.Is_Shift_Pressed = true;
-          this.nrrd_states.enableCursorChoose = false;
-        } else if (prev === 'draw') {
-          this.protectedData.Is_Shift_Pressed = false;
-        }
         if (next === 'contrast') {
-          this.protectedData.Is_Ctrl_Pressed = true;
-          this.protectedData.Is_Shift_Pressed = false;
           this.configContrastDragMode();
         } else if (prev === 'contrast') {
-          this.protectedData.Is_Ctrl_Pressed = false;
           this.removeContrastDragMode();
           this.gui_states.readyToUpdate = true;
         }
         if (next === 'crosshair') {
-          this.nrrd_states.enableCursorChoose = true;
           this.protectedData.Is_Draw = false;
-        } else if (prev === 'crosshair') {
-          this.nrrd_states.enableCursorChoose = false;
         }
       }
     });
+
+    // Inject eventRouter into ToolContext so tools can query mode/state
+    const toolCtx = this.sphereTool['ctx'] as import('./tools/BaseTool').ToolContext;
+    toolCtx.eventRouter = this.eventRouter;
 
     // Configure keyboard settings from class field
     this.eventRouter.setKeyboardSettings(this._keyboardSettings);
@@ -190,8 +181,9 @@ export class DrawToolCore extends CommToolsData {
       }
 
       // Handle draw mode (Shift key) - EventRouter already tracks this
+      // EventRouter's handleKeyDown will enforce mutual exclusion
       if (ev.key === this._keyboardSettings.draw && !this.gui_states.sphere && !this.gui_states.calculator) {
-        if (this.protectedData.Is_Ctrl_Pressed) {
+        if (this.eventRouter?.isCtrlHeld()) {
           return; // Ctrl takes priority
         }
         // EventRouter will set mode to 'draw' via internal handler
@@ -210,6 +202,8 @@ export class DrawToolCore extends CommToolsData {
         }
         // Skip mode toggle when contrast shortcut is disabled
         if (!this.eventRouter?.isContrastEnabled()) return;
+        // Block contrast toggle during crosshair or draw (mutual exclusion)
+        if (this.eventRouter?.isCrosshairEnabled() || this.eventRouter?.getMode() === 'draw') return;
         // Toggle contrast mode manually since it's on keyup
         if (this.eventRouter?.getMode() !== 'contrast') {
           this.eventRouter?.setMode('contrast');
@@ -480,7 +474,7 @@ export class DrawToolCore extends CommToolsData {
       );
 
       if (e.button === 0) {
-        if (this.protectedData.Is_Shift_Pressed) {
+        if (this.eventRouter?.getMode() === 'draw') {
           leftclicked = true;
           lines = [];
           Is_Painting = true;
@@ -523,7 +517,7 @@ export class DrawToolCore extends CommToolsData {
             "pointermove",
             this.drawingPrameters.handleOnDrawingMouseMove
           );
-        } else if (this.nrrd_states.enableCursorChoose) {
+        } else if (this.eventRouter?.isCrosshairEnabled()) {
           this.nrrd_states.cursorPageX =
             e.offsetX / this.nrrd_states.sizeFoctor;
           this.nrrd_states.cursorPageY =
@@ -535,11 +529,11 @@ export class DrawToolCore extends CommToolsData {
             this.drawingPrameters.handleOnDrawingMouseUp
           );
 
-        } else if (this.gui_states.sphere && !this.nrrd_states.enableCursorChoose) {
+        } else if (this.gui_states.sphere && !this.eventRouter?.isCrosshairEnabled()) {
 
           sphere(e)
 
-        } else if (this.gui_states.calculator && !this.nrrd_states.enableCursorChoose) {
+        } else if (this.gui_states.calculator && !this.eventRouter?.isCrosshairEnabled()) {
 
           this.drawCalSphereDown(e.offsetX, e.offsetY, this.nrrd_states.currentIndex, this.gui_states.cal_distance)
         }
@@ -645,7 +639,7 @@ export class DrawToolCore extends CommToolsData {
     this.drawingPrameters.handleOnDrawingMouseUp = (e: MouseEvent) => {
       if (e.button === 0) {
 
-        if (this.protectedData.Is_Shift_Pressed || Is_Painting) {
+        if (this.eventRouter?.getMode() === 'draw' || Is_Painting) {
           leftclicked = false;
           let { ctx, canvas } = this.setCurrentLayer();
 
@@ -730,7 +724,7 @@ export class DrawToolCore extends CommToolsData {
           );
         } else if (
           this.gui_states.sphere &&
-          !this.nrrd_states.enableCursorChoose
+          !this.eventRouter?.isCrosshairEnabled()
         ) {
           // plan B
           // findout all index in the sphere radius range in Axial view
@@ -767,7 +761,7 @@ export class DrawToolCore extends CommToolsData {
           );
 
         } else if ((this.gui_states.sphere || this.gui_states.calculator) &&
-          this.nrrd_states.enableCursorChoose) {
+          this.eventRouter?.isCrosshairEnabled()) {
           this.protectedData.canvases.drawingCanvas.addEventListener(
             "wheel",
             this.drawingPrameters.handleMouseZoomSliceWheel
@@ -777,7 +771,7 @@ export class DrawToolCore extends CommToolsData {
             this.drawingPrameters.handleOnDrawingMouseUp
           );
         } else if (this.gui_states.calculator &&
-          !this.nrrd_states.enableCursorChoose) {
+          !this.eventRouter?.isCrosshairEnabled()) {
           // When mouse up
           this.drawCalSphereUp()
         }
@@ -857,7 +851,10 @@ export class DrawToolCore extends CommToolsData {
             target.ctx.globalAlpha = 1;
           }
         } else {
-          if (this.protectedData.Is_Shift_Pressed) {
+          // Use EventRouter mode for mutually exclusive crosshair vs draw rendering
+          const currentMode = this.eventRouter?.getMode();
+          if (currentMode === 'draw') {
+            // Draw mode: show brush circle preview
             if (
               !this.gui_states.pencil &&
               !this.gui_states.Eraser &&
@@ -883,8 +880,8 @@ export class DrawToolCore extends CommToolsData {
                 this.gui_states.brushColor;
               this.protectedData.ctxes.drawingCtx.stroke();
             }
-          }
-          if (this.nrrd_states.enableCursorChoose) {
+          } else if (currentMode === 'crosshair' || this.eventRouter?.isCrosshairEnabled()) {
+            // Crosshair mode: show red cross lines (mutually exclusive with draw)
             this.protectedData.ctxes.drawingCtx.clearRect(
               0,
               0,
