@@ -46,6 +46,16 @@ Both methods were part of the legacy 4-channel RGBA storage design. The current 
 
 ---
 
+### 4. MigrationUtils (IPaintImages <-> Volume conversion) removed
+
+These legacy conversion methods were only used during the transition phase to `MaskVolume`. Since no business logic depends on the legacy `IPaintImages` formats anymore, the conversion utility was safely removed.
+
+**Files modified:**
+- `core/MigrationUtils.ts` — Deleted file
+- `core/__tests__/MigrationUtils.test.ts` — Deleted file
+- `core/index.ts` — Removed `IPaintImage`, `IPaintImages`, `convertIPaintImagesToVolume`, `convertVolumeToIPaintImages` exports
+
+---
 ## Remaining Dead Code (not yet cleaned)
 
 ### Dead Methods / Functions — never called in production
@@ -85,7 +95,5 @@ These exist only to support unit test assertions. They are correct and valuable 
 |---|---|---|---|
 | `MaskVolume.getMemoryUsage()` | `core/MaskVolume.ts` | 803 | Test-only. |
 | `MaskVolume.clone()` | `core/MaskVolume.ts` | 869 | Test-only. |
-| `convertIPaintImagesToVolume()` | `core/MigrationUtils.ts` | 77 | Test-only. No production caller. |
-| `convertVolumeToIPaintImages()` | `core/MigrationUtils.ts` | 164 | Test-only. No production caller. |
 
 > **Note (corrected from previous scan):** `MaskVolume.setChannelColor()`, `MaskVolume.getChannelColor()`, `MaskVolume.getRawData()`, and `MaskVolume.setRawData()` were previously listed as test-only. They are **now used in production** — `NrrdTools.ts` calls all four directly for the layer colour API and NIfTI mask loading. They should be retained.
