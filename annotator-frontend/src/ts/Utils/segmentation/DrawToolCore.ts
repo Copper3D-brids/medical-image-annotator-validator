@@ -171,11 +171,9 @@ export class DrawToolCore extends CommToolsData {
         this.redoLastPainting();
       }
 
-      // Handle crosshair toggle
+      // Handle crosshair toggle (allowed in drawing tools AND sphere/calculator modes)
       if (ev.key === this._keyboardSettings.crosshair) {
-        if (!this.gui_states.sphere && !this.gui_states.calculator) {
-          this.eventRouter?.toggleCrosshair();
-        }
+        this.eventRouter?.toggleCrosshair();
       }
 
       // Handle draw mode (Shift key) - EventRouter already tracks this
@@ -185,6 +183,20 @@ export class DrawToolCore extends CommToolsData {
           return; // Ctrl takes priority
         }
         // EventRouter will set mode to 'draw' via internal handler
+      }
+
+      // Handle sphere mode toggle
+      if (ev.key === this._keyboardSettings.sphere) {
+        // Block during draw mode or contrast mode
+        if (this.eventRouter?.isShiftHeld() || this.eventRouter?.isCtrlHeld()) {
+          return;
+        }
+        this.gui_states.sphere = !this.gui_states.sphere;
+        if (this.gui_states.sphere) {
+          this.enterSphereMode();
+        } else {
+          this.exitSphereMode();
+        }
       }
     });
 
@@ -200,8 +212,9 @@ export class DrawToolCore extends CommToolsData {
         }
         // Skip mode toggle when contrast shortcut is disabled
         if (!this.eventRouter?.isContrastEnabled()) return;
-        // Block contrast toggle during crosshair or draw (mutual exclusion)
+        // Block contrast toggle during crosshair, draw, sphere, or calculator (mutual exclusion)
         if (this.eventRouter?.isCrosshairEnabled() || this.eventRouter?.getMode() === 'draw') return;
+        if (this.gui_states.sphere || this.gui_states.calculator) return;
         // Toggle contrast mode manually since it's on keyup
         if (this.eventRouter?.getMode() !== 'contrast') {
           this.eventRouter?.setMode('contrast');
@@ -297,12 +310,10 @@ export class DrawToolCore extends CommToolsData {
   }
 
   drawCalSphereUp() {
-    // TODO send data to outside
-    // this.clearStoreImages();
-    this.clearSpherePrintStoreImages()
-    this.drawCalculatorSphereOnEachViews("x");
-    this.drawCalculatorSphereOnEachViews("y");
-    this.drawCalculatorSphereOnEachViews("z");
+    // Write all placed calculator spheres to volume
+    this.sphereTool.writeAllCalculatorSpheresToVolume();
+    // Render current slice from volume to sphere canvas
+    this.sphereTool.refreshSphereCanvas();
 
     !!this.nrrd_states.getCalculateSpherePositions &&
       this.nrrd_states.getCalculateSpherePositions(
@@ -691,17 +702,13 @@ export class DrawToolCore extends CommToolsData {
           this.gui_states.sphere &&
           !this.eventRouter?.isCrosshairEnabled()
         ) {
-          // plan B
-          // findout all index in the sphere radius range in Axial view
+          // Write 3D solid sphere to sphereMaskVolume
           if (this.nrrd_states.spherePlanB) {
-            // clear stroe images
-            // this.clearStoreImages();
-            this.clearSpherePrintStoreImages()
-            for (let i = 0; i < this.nrrd_states.sphereRadius; i++) {
-              this.drawSphereOnEachViews(i, "x");
-              this.drawSphereOnEachViews(i, "y");
-              this.drawSphereOnEachViews(i, "z");
-            }
+            const vol = this.nrrd_states.sphereMaskVolume;
+            if (vol) vol.clear();
+            this.sphereTool.write3DSphereToVolume();
+            // Render current slice from volume to sphere canvas
+            this.sphereTool.refreshSphereCanvas();
           }
 
           !!this.nrrd_states.getSphere &&
@@ -880,6 +887,19 @@ export class DrawToolCore extends CommToolsData {
           0,
           0
         );
+
+        // Draw sphere overlay from cached sphere canvas (separate from master).
+        // During preview: drawSphere/drawCalculatorSphere update the sphere canvas.
+        // After placement: refreshSphereCanvas renders from sphereMaskVolume.
+        if (this.gui_states.sphere || this.gui_states.calculator) {
+          this.protectedData.ctxes.drawingCtx.drawImage(
+            this.protectedData.canvases.drawingSphereCanvas,
+            0,
+            0,
+            this.nrrd_states.changedWidth,
+            this.nrrd_states.changedHeight
+          );
+        }
       } else {
         this.redrawDisplayCanvas();
       }
@@ -1043,6 +1063,16 @@ export class DrawToolCore extends CommToolsData {
 
   drawSphere(mouseX: number, mouseY: number, radius: number) {
     this.sphereTool.drawSphere(mouseX, mouseY, radius);
+  }
+
+  /**
+   * Refresh sphere canvas from sphereMaskVolume for the current slice/axis.
+   * Called after view changes (slice switch, zoom, contrast, axis switch).
+   */
+  refreshSphereOverlay() {
+    if (this.gui_states.sphere || this.gui_states.calculator) {
+      this.sphereTool.refreshSphereCanvas();
+    }
   }
 
   /**

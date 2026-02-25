@@ -70,6 +70,9 @@ export class NrrdTools extends DrawToolCore {
     if (this.eventRouter) {
       this.dragOperator.setEventRouter(this.eventRouter);
     }
+
+    // Wire sphere overlay refresh callback into DragOperator → DragSliceTool
+    this.dragOperator.setRefreshSphereOverlay(() => this.refreshSphereOverlay());
   }
 
   /**
@@ -623,6 +626,17 @@ export class NrrdTools extends DrawToolCore {
       {} as Record<string, MaskVolume>
     );
 
+    // Create dedicated SphereMaskVolume for 3D sphere data.
+    // Separate from layer volumes to avoid polluting draw mask data.
+    // Cleared in clear() when switching cases.
+    this.nrrd_states.sphereMaskVolume = new MaskVolume(vw, vh, vd, 1);
+    // Configure sphere label colors:
+    // label 1 (tumour/default) = Green, 2 (skin) = Yellow, 3 (nipple) = Magenta, 4 (ribcage) = Blue
+    this.nrrd_states.sphereMaskVolume.setChannelColor(1, { r: 0, g: 255, b: 0, a: 255 });
+    this.nrrd_states.sphereMaskVolume.setChannelColor(2, { r: 255, g: 255, b: 0, a: 255 });
+    this.nrrd_states.sphereMaskVolume.setChannelColor(3, { r: 255, g: 0, b: 255, a: 255 });
+    this.nrrd_states.sphereMaskVolume.setChannelColor(4, { r: 0, g: 0, b: 255, a: 255 });
+
     this.nrrd_states.spaceOrigin = (
       randomSlice.x.volume.header.space_origin as number[]
     ).map((item) => {
@@ -980,6 +994,9 @@ export class NrrdTools extends DrawToolCore {
       {} as Record<string, MaskVolume>
     );
 
+    // Clear dedicated SphereMaskVolume
+    this.nrrd_states.sphereMaskVolume = null;
+
     // Invalidate reusable slice buffer
     this.invalidateSliceBuffer();
 
@@ -1306,6 +1323,67 @@ export class NrrdTools extends DrawToolCore {
     }
   }
 
+  /**
+   * Enter sphere mode.
+   *
+   * Clears all layer canvases and the master composite canvas so that
+   * only the sphere overlay is visible. Does NOT touch MaskVolume data.
+   * Also disables drag mode to prevent slice dragging conflicts.
+   *
+   * Called when sphere mode is toggled on (keyboard shortcut or GUI).
+   */
+  enterSphereMode(): void {
+    // Disable left-click drag for slice navigation
+    this.dragOperator.removeDragMode();
+
+    // Tell EventRouter we're in sphere mode so Shift/draw is blocked
+    this.eventRouter?.setGuiTool('sphere');
+
+    // Clear all layer canvases (NOT MaskVolumes — just visual canvas)
+    const w = this.nrrd_states.changedWidth;
+    const h = this.nrrd_states.changedHeight;
+    for (const layerId of this.nrrd_states.layers) {
+      const target = this.protectedData.layerTargets.get(layerId);
+      if (target) {
+        target.ctx.clearRect(0, 0, target.canvas.width, target.canvas.height);
+      }
+    }
+    // Clear master composite canvas
+    this.protectedData.ctxes.drawingLayerMasterCtx.clearRect(0, 0, w, h);
+    // Refresh sphere overlay from volume (shows existing sphere data on re-entry)
+    this.refreshSphereOverlay();
+  }
+
+  /**
+   * Exit sphere mode.
+   *
+   * Clears sphere overlay, restores all layer MaskVolume data onto
+   * their canvases by temporarily lifting the sphere guard in
+   * reloadMasksFromVolume and calling it.
+   *
+   * Called when sphere mode is toggled off (keyboard shortcut or GUI).
+   */
+  exitSphereMode(): void {
+    // Restore left-click drag for slice navigation
+    this.dragOperator.configDragMode();
+
+    // Restore EventRouter guiTool to pencil (default drawing tool)
+    this.eventRouter?.setGuiTool('pencil');
+
+    // Clear sphere canvas overlay
+    this.protectedData.ctxes.drawingSphereCtx.clearRect(
+      0, 0,
+      this.protectedData.canvases.drawingSphereCanvas.width,
+      this.protectedData.canvases.drawingSphereCanvas.height
+    );
+    // resetLayerCanvas clears the layer canvas elements
+    this.resetLayerCanvas();
+    // Temporarily lift sphere guard so reloadMasksFromVolume can run.
+    // gui_states.sphere is already set to false by the caller before
+    // calling this method, so reloadMasksFromVolume will proceed normally.
+    this.reloadMasksFromVolume();
+  }
+
   redrawMianPreOnDisplayCanvas() {
     this.protectedData.canvases.displayCanvas.width =
       this.protectedData.canvases.displayCanvas.width;
@@ -1379,6 +1457,9 @@ export class NrrdTools extends DrawToolCore {
       // valid data, just recomposite to master for the start() render loop.
       this.compositeAllLayers();
     }
+
+    // Refresh sphere overlay from volume after resize/contrast change
+    this.refreshSphereOverlay();
   }
 
   /**
@@ -1386,6 +1467,12 @@ export class NrrdTools extends DrawToolCore {
    * Replaces the old reloadMaskToLayer approach
    */
   private reloadMasksFromVolume(): void {
+    // When sphere/calculator mode is active, do NOT redraw layer masks.
+    // Layer mask data should remain hidden until the user exits sphere mode.
+    if (this.gui_states.sphere || this.gui_states.calculator) {
+      return;
+    }
+
     const axis = this.protectedData.axis;
     let sliceIndex = this.nrrd_states.currentIndex;
 

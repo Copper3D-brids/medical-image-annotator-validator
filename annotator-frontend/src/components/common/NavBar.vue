@@ -266,15 +266,13 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   overflow-x: auto; /* Allow scrolling if content is too wide */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
 }
 
-/* Scrollbar styling for webkit */
+/* Hide scrollbar for webkit */
 .nav .content::-webkit-scrollbar {
-  height: 4px;
-}
-.nav .content::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 2px;
+  display: none;
 }
 
 .dark .content {

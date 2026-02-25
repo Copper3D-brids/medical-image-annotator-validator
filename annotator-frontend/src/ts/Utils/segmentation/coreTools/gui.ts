@@ -9,6 +9,8 @@ import {
 } from "./coreType";
 import { DragOperator } from "../DragOperator";
 import { CHANNEL_HEX_COLORS, rgbaToHex } from "../core";
+import { SPHERE_COLORS } from "../tools/SphereTool";
+import type { SphereType } from "../tools/SphereTool";
 
 interface IConfigGUI {
   modeFolder: GUI;
@@ -287,21 +289,13 @@ function setupGui(configs: IConfigGUI): IGuiParameterSettings {
 
   const updateGuiSphereState = () => {
     if (configs.gui_states.sphere) {
-      // configs.drawingCanvas.removeEventListener(
-      //   "wheel",
-      //   configs.drawingPrameters.handleZoomWheel
-      // );
-      configs.removeDragMode();
+      // Entering sphere mode — enterSphereMode handles:
+      // drag removal, guiTool update, canvas clearing
+      (configs as any).enterSphereMode?.();
     } else {
-      // configs.drawingCanvas.addEventListener(
-      //   "wheel",
-      //   configs.drawingPrameters.handleZoomWheel
-      // );
-      configs.configDragMode();
-
-      // clear canvas
-      configs.clearPaint();
-      configs.clearStoreImages();
+      // Exiting sphere mode — exitSphereMode handles:
+      // drag restore, guiTool reset, mask reload
+      (configs as any).exitSphereMode?.();
     }
   };
 
@@ -319,28 +313,9 @@ function setupGui(configs: IConfigGUI): IGuiParameterSettings {
   }
 
   const updateCalDistance = (val: "tumour" | "skin" | "ribcage" | "nipple") => {
-    switch (val) {
-      case "tumour":
-        configs.gui_states.fillColor = configs.nrrd_states.tumourColor;
-        configs.gui_states.brushColor = configs.nrrd_states.tumourColor;
-        break;
-      case "skin":
-        configs.gui_states.fillColor = configs.nrrd_states.skinColor;
-        configs.gui_states.brushColor = configs.nrrd_states.skinColor;
-        break;
-      case "ribcage":
-        configs.gui_states.fillColor = configs.nrrd_states.ribcageColor;
-        configs.gui_states.brushColor = configs.nrrd_states.ribcageColor;
-        break;
-      case "nipple":
-        configs.gui_states.fillColor = configs.nrrd_states.nippleColor;
-        configs.gui_states.brushColor = configs.nrrd_states.nippleColor;
-        break;
-      default:
-        configs.gui_states.fillColor = configs.nrrd_states.tumourColor;
-        configs.gui_states.brushColor = configs.nrrd_states.tumourColor;
-        break;
-    }
+    const color = SPHERE_COLORS[val as SphereType];
+    configs.gui_states.fillColor = color;
+    configs.gui_states.brushColor = color;
   }
 
   const updateGuiImageWindowLowOnChange = (value: number) => {

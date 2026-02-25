@@ -373,6 +373,39 @@ onChannelColorChanged: (layerId: string, channel: number, color: RGBAColor) => v
 
 定义: [CommToolsData.ts:102-103](annotator-frontend/src/ts/Utils/segmentation/CommToolsData.ts#L102-L103)
 
+**`getSphere`**: Sphere 模式下左键松开时调用。
+
+```ts
+getSphere: (sphereOrigin: number[], sphereRadius: number) => void
+// sphereOrigin = [mouseX, mouseY, sliceIndex] — z-axis 坐标
+// sphereRadius = 半径 (1-50 像素)
+```
+
+**`getCalculateSpherePositions`**: Calculator 模式下放置 sphere 后调用。
+
+```ts
+getCalculateSpherePositions: (
+  tumourSphereOrigin: ICommXYZ | null,  // channel 1
+  skinSphereOrigin: ICommXYZ | null,    // channel 4
+  ribSphereOrigin: ICommXYZ | null,     // channel 3
+  nippleSphereOrigin: ICommXYZ | null,  // channel 5
+  axis: "x" | "y" | "z"
+) => void
+// 每个 origin 为 { x: [mx, my, slice], y: [...], z: [...] }
+// null 表示该类型尚未放置
+```
+
+**Channel 映射** (exported as `SPHERE_CHANNEL_MAP`):
+
+| Sphere Type | Layer  | Channel | 颜色 |
+|-------------|--------|---------|------|
+| tumour      | layer1 | 1       | `#00ff00` |
+| ribcage     | layer1 | 3       | `#2196F3` |
+| skin        | layer1 | 4       | `#FFEB3B` |
+| nipple      | layer1 | 5       | `#E91E63` |
+
+> ⚠️ 当前 sphere 数据不写入 layer MaskVolume，仅作为 overlay 显示。Channel 映射预留供未来使用。
+
 ---
 
 ## 5. MaskVolume 存储与渲染
@@ -541,7 +574,7 @@ abstract class BaseTool {
 
 | Tool | 文件 | 说明 |
 |------|------|------|
-| **SphereTool** | [tools/SphereTool.ts](annotator-frontend/src/ts/Utils/segmentation/tools/SphereTool.ts) | 3D 球形标注工具 |
+| **SphereTool** | [tools/SphereTool.ts](annotator-frontend/src/ts/Utils/segmentation/tools/SphereTool.ts) | 3D 球形标注工具，支持 4 种类型 (tumour/skin/ribcage/nipple)，各映射到 layer1 的指定 channel |
 | **CrosshairTool** | [tools/CrosshairTool.ts](annotator-frontend/src/ts/Utils/segmentation/tools/CrosshairTool.ts) | 十字准星位置标记 |
 | **ContrastTool** | [tools/ContrastTool.ts](annotator-frontend/src/ts/Utils/segmentation/tools/ContrastTool.ts) | 窗位/窗宽调节 |
 | **ZoomTool** | [tools/ZoomTool.ts](annotator-frontend/src/ts/Utils/segmentation/tools/ZoomTool.ts) | 缩放/平移 |
@@ -564,6 +597,52 @@ Canvas → Volume 同步流程:
 **`filterDrawedImage(axis, sliceIndex)`** — [ImageStoreHelper.ts:85-107](annotator-frontend/src/ts/Utils/segmentation/tools/ImageStoreHelper.ts#L85-L107)
 
 Volume → Canvas 读取，调用 `volume.renderLabelSliceInto()`.
+
+### 7.3 SphereTool（球形标注工具）
+
+**文件**: [tools/SphereTool.ts](annotator-frontend/src/ts/Utils/segmentation/tools/SphereTool.ts)
+
+#### 类型与常量
+
+```ts
+type SphereType = 'tumour' | 'skin' | 'nipple' | 'ribcage';
+
+const SPHERE_CHANNEL_MAP: Record<SphereType, { layer: string; channel: number }>;
+const SPHERE_COLORS: Record<SphereType, string>;
+```
+
+#### 辅助方法
+
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| `getChannelForSphereType` | `(type: SphereType): number` | 获取 sphere 类型对应的 channel 号 |
+| `getLayerForSphereType` | `(type: SphereType): string` | 获取 sphere 类型对应的 layer ID |
+| `getColorForSphereType` | `(type: SphereType): string` | 获取 sphere 类型对应的预览颜色 |
+
+#### 使用边界
+
+Sphere/Calculator 模式激活时：
+- ❌ **Shift 键被禁用** — 不能进入 draw 模式 ([DrawToolCore.ts:183](annotator-frontend/src/ts/Utils/segmentation/DrawToolCore.ts#L183))
+- ❌ **Crosshair 切换被禁用** ([DrawToolCore.ts:176](annotator-frontend/src/ts/Utils/segmentation/DrawToolCore.ts#L176))
+- ❌ **clearPaint 不通知后端** ([DrawToolCore.ts:1119](annotator-frontend/src/ts/Utils/segmentation/DrawToolCore.ts#L1119))
+
+#### 交互流程
+
+```
+左键按下 → 记录 origin → 绑定 sphere wheel → 绘制预览圆
+滚轮 (左键按住) → sphereRadius ±1 [1, 50] → 重绘
+左键松开 → 触发 callbacks → 恢复 wheel 模式
+```
+
+#### SphereMaskVolume
+
+独立 `MaskVolume`，存储 sphere 3D 数据，不污染 layer draw mask。
+
+| 生命周期 | 位置 | 操作 |
+|---------|------|------|
+| 创建 | `NrrdTools.setAllSlices()` | `new MaskVolume(vw, vh, vd, 1)` |
+| 清空 | `NrrdTools.clear()` | `sphereMaskVolume = null` |
+| 存储 | `nrrd_states.sphereMaskVolume` | — |
 
 ---
 

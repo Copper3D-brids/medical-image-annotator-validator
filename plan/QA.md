@@ -27,3 +27,6 @@
 ### Conclusion
 **Keep it for now** as it works for the current requirements. 
 **Future Refactor**: Move to a single WebGL canvas or dynamic layer array if performance/layer count becomes an issue.
+
+
+6. 还有一个UI 渲染问题， 当sphereTool画了sphere之后，通知right panel渲染sphere，这是正确的。但是我在退出sphereTool模式时，rightpanel应该要将sphere切换为之前的glb mask models啊。而且要隐藏sphere（tumour），当再次进入时又将他们的显示与隐藏再次切换

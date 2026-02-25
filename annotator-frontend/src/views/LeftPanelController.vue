@@ -216,6 +216,7 @@ const onFinishedCopperInit = (copperInitData: ILeftCoreCopperInit) => {
   // disable contrast drag
   // nrrdTools.value.setContrastShortcutEnabled(false)
   // nrrdTools.value.setKeyboardSettings({ mouseWheel: 'Scroll:Slice' });
+  // nrrdTools.value.gui_states.sphere = true;
 };
 
 const onOpenDialog = (flag: boolean) => { dialog.value = flag; };

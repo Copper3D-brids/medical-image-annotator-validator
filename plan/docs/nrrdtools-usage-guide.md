@@ -243,12 +243,29 @@ nrrdTools.draw({
     notifyBackendLayerCleared(layerId);
   },
 
-  // Called when the 3D sphere annotation tool places a sphere
+  // Called when the 3D sphere annotation tool places a sphere (sphere mode)
+  //
+  // sphereOrigin: [mouseX, mouseY, sliceIndex] — center on z-axis view
+  // sphereRadius: radius in pixels (1-50)
+  //
+  // Note: Sphere data does NOT write to layer MaskVolume.
+  // It is rendered as a visual overlay via the dedicated sphereMaskVolume.
   getSphereData: (sphereOrigin: number[], sphereRadius: number) => {
     console.log('Sphere placed at', sphereOrigin, 'radius', sphereRadius);
+    sendSphereToBackend({ sphereOrigin, sphereRadius });
   },
 
-  // Called when the calculate-sphere-positions tool fires
+  // Called when the calculator sphere positions are updated (calculator mode)
+  //
+  // Each sphere type maps to a specific channel on layer1:
+  //   tumour  → channel 1
+  //   ribcage → channel 3
+  //   skin    → channel 4
+  //   nipple  → channel 5
+  //
+  // Origins are ICommXYZ: { x: [mx, my, slice], y: [...], z: [...] }
+  // representing sphere center coordinates on all 3 axis views.
+  // null if that sphere type has not been placed yet.
   getCalculateSpherePositionsData: (
     tumourOrigin, skinOrigin, ribOrigin, nippleOrigin, axis
   ) => {
@@ -256,6 +273,57 @@ nrrdTools.draw({
   },
 });
 ```
+
+### 5.3 SphereTool — 3D Sphere Placement
+
+The SphereTool provides two modes: **Sphere** (single sphere placement) and **Calculator** (4-type marker placement for AI segmentation).
+
+#### Channel Mapping
+
+Each sphere type maps to a specific channel on layer1:
+
+| Sphere Type | Channel | Default Color |
+|-------------|---------|---------------|
+| tumour      | 1       | `#00ff00` (green) |
+| ribcage     | 3       | `#2196F3` (blue) |
+| skin        | 4       | `#FFEB3B` (yellow) |
+| nipple      | 5       | `#E91E63` (pink) |
+
+These mappings are exported as `SPHERE_CHANNEL_MAP` and `SPHERE_COLORS` from `tools/SphereTool.ts`.
+
+#### Interaction Flow
+
+```
+Sphere mode activated (gui_states.sphere = true):
+  ├─ Shift key DISABLED (no draw mode)
+  ├─ Crosshair toggle DISABLED
+  │
+  ├─ Left-click DOWN → record origin, show preview, bind sphere wheel
+  ├─ Scroll wheel (while holding) → adjust radius [1, 50]
+  └─ Left-click UP → fire callbacks, restore zoom/slice wheel
+```
+
+#### SphereMaskVolume
+
+Sphere 3D data is stored in a dedicated `MaskVolume` (`nrrd_states.sphereMaskVolume`), separate from the layer draw mask volumes. This prevents sphere overlay data from polluting layer1's annotations.
+
+- **Created** in `setAllSlices()` (same dimensions as CT volume)
+- **Cleared** in `clear()` (when switching cases)
+
+> **Note**: Currently sphere data does NOT write to layer1's MaskVolume. The channel mapping and `sphereMaskVolume` are reserved for future integration.
+
+#### Scenario: Calculator mode with AI backend
+
+```typescript
+nrrdTools.draw({
+  getCalculateSpherePositionsData: (tumour, skin, rib, nipple, axis) => {
+    // Send all 4 sphere origins to AI backend
+    // Each origin is { x: [mx, my, slice], y: [...], z: [...] } or null
+    if (tumour && skin && rib && nipple) {
+      aiBackend.runSegmentation({ tumour, skin, rib, nipple, axis });
+    }
+  },
+});
 
 ### 5.3 `enableContrastDragEvents()` — Windowing
 

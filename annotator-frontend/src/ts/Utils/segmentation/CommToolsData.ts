@@ -32,6 +32,7 @@ export class CommToolsData {
     redo: "y",
     contrast: ["Control", "Meta"],
     crosshair: "s",
+    sphere: "p",
     mouseWheel: "Scroll:Zoom",
   };
 
@@ -72,6 +73,7 @@ export class CommToolsData {
     ribcageColor: "#2196F3",
     nippleColor: "#E91E63",
 
+    sphereMaskVolume: null,
     spherePlanB: true,
     sphereRadius: 5,
     Mouse_Over_x: 0,
@@ -464,6 +466,25 @@ export class CommToolsData {
   resetLayerCanvas() {
     throw new Error(
       "Child class must implement abstract resetLayerCanvas, currently you can find it in NrrdTools."
+    );
+  }
+  /**
+   * Enter sphere mode: clear all layer canvases (not MaskVolume),
+   * hide all mask data so sphere overlay is the only visible annotation.
+   * Rewrite this under NrrdTools.
+   */
+  enterSphereMode() {
+    throw new Error(
+      "Child class must implement abstract enterSphereMode, currently you can find it in NrrdTools."
+    );
+  }
+  /**
+   * Exit sphere mode: clear sphere canvas overlay, reload all layer
+   * MaskVolume data back onto canvases. Rewrite this under NrrdTools.
+   */
+  exitSphereMode() {
+    throw new Error(
+      "Child class must implement abstract exitSphereMode, currently you can find it in NrrdTools."
     );
   }
   /**

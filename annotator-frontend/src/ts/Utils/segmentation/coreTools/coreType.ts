@@ -181,6 +181,7 @@ interface IKeyBoardSettings {
   redo: string;
   contrast: string[];
   crosshair: string;
+  sphere: string;
   mouseWheel: "Scroll:Zoom" | "Scroll:Slice";
 }
 
@@ -219,6 +220,13 @@ interface INrrdStates {
   skinColor: "#FFEB3B",
   ribcageColor: "#2196F3",
   nippleColor: "#E91E63",
+  /**
+   * Dedicated MaskVolume for SphereTool 3D sphere data.
+   * Separate from layer volumes to avoid polluting draw mask data.
+   * Created in setAllSlices(), cleared in clear().
+   * Type is `any` here to avoid circular deps (actual type: MaskVolume).
+   */
+  sphereMaskVolume: any;
   spherePlanB: boolean;
   sphereRadius: number;
   Mouse_Over_x: number;
