@@ -94,8 +94,6 @@ export class DrawToolCore extends CommToolsData {
     this.sphereTool = new SphereTool(toolCtx, {
       setEmptyCanvasSize: (axis?) => this.setEmptyCanvasSize(axis),
       drawImageOnEmptyImage: (canvas) => this.drawImageOnEmptyImage(canvas),
-      storeImageToAxis: (index, imageData, axis?) =>
-        this.imageStoreHelper.storeImageToAxis(index, imageData, axis),
     });
 
     this.crosshairTool = new CrosshairTool(toolCtx);
@@ -365,14 +363,6 @@ export class DrawToolCore extends CommToolsData {
 
     this.protectedData.ctxes.displayCtx?.restore();
 
-    this.protectedData.previousDrawingImage =
-      this.protectedData.ctxes.drawingCtx.getImageData(
-        0,
-        0,
-        this.protectedData.canvases.drawingCanvas.width,
-        this.protectedData.canvases.drawingCanvas.height
-      );
-
     // let a global variable to store the wheel move event
 
     // Remove existing listener before creating a new one to prevent leaks
@@ -459,11 +449,7 @@ export class DrawToolCore extends CommToolsData {
         return;
       }
 
-      // when switch slice, clear previousDrawingImage
-      // todo
       if (currentSliceIndex !== this.protectedData.mainPreSlices.index) {
-        this.protectedData.previousDrawingImage =
-          this.protectedData.ctxes.emptyCtx.createImageData(1, 1);
         currentSliceIndex = this.protectedData.mainPreSlices.index;
       }
 
@@ -619,9 +605,6 @@ export class DrawToolCore extends CommToolsData {
       this.protectedData.canvases.emptyCanvas.width =
         this.protectedData.canvases.emptyCanvas.width;
 
-      if (tempPreImg) {
-        this.protectedData.previousDrawingImage = tempPreImg;
-      }
       this.protectedData.ctxes.emptyCtx.putImageData(tempPreImg!, 0, 0);
       // No flip needed: MaskVolume stores in source coordinates (matching the
       // Three.js / layer canvas convention).  The layer canvas is in screen
@@ -670,28 +653,10 @@ export class DrawToolCore extends CommToolsData {
             }
           }
 
-          this.protectedData.previousDrawingImage =
-            this.protectedData.ctxes.drawingLayerMasterCtx.getImageData(
-              0,
-              0,
-              this.protectedData.canvases.drawingCanvasLayerMaster.width,
-              this.protectedData.canvases.drawingCanvasLayerMaster.height
-            );
-          this.storeAllImages(
+          this.syncLayerSliceData(
             this.nrrd_states.currentIndex,
             this.gui_states.layer
           );
-          if (this.gui_states.Eraser) {
-            const restLayers = this.getRestLayer();
-            this.storeEachLayerImage(
-              this.nrrd_states.currentIndex,
-              restLayers[0]
-            );
-            this.storeEachLayerImage(
-              this.nrrd_states.currentIndex,
-              restLayers[1]
-            );
-          }
 
           Is_Painting = false;
 
@@ -1124,8 +1089,6 @@ export class DrawToolCore extends CommToolsData {
     this.protectedData.mainPreSlices.repaint.call(
       this.protectedData.mainPreSlices
     );
-    this.protectedData.previousDrawingImage =
-      this.protectedData.ctxes.emptyCtx.createImageData(1, 1);
 
     // Clear only the active layer's MaskVolume slice and record undo delta
     try {
@@ -1285,31 +1248,12 @@ export class DrawToolCore extends CommToolsData {
 
     // Re-composite all layers to master
     this.compositeAllLayers();
-
-    // Update previousDrawingImage from master
-    this.protectedData.previousDrawingImage =
-      this.protectedData.ctxes.drawingLayerMasterCtx.getImageData(
-        0, 0,
-        this.protectedData.canvases.drawingCanvasLayerMaster.width,
-        this.protectedData.canvases.drawingCanvasLayerMaster.height
-      );
   }
 
   /****************************Store images (delegated to ImageStoreHelper)****************************************************/
 
-  storeAllImages(index: number, layer: string) {
-    this.imageStoreHelper.storeAllImages(index, layer);
-  }
-
-  storeImageToLayer(
-    index: number,
-    canvas: HTMLCanvasElement
-  ) {
-    return this.imageStoreHelper.storeImageToLayer(index, canvas);
-  }
-
-  storeEachLayerImage(index: number, layer: string) {
-    this.imageStoreHelper.storeEachLayerImage(index, layer);
+  syncLayerSliceData(index: number, layer: string) {
+    this.imageStoreHelper.syncLayerSliceData(index, layer);
   }
 
   /******************************** Utils gui related functions (delegated to ContrastTool) ***************************************/

@@ -35,18 +35,9 @@ interface IConfigGUI {
   resetLayerCanvas: () => void;
   redrawDisplayCanvas: () => void;
   flipDisplayImageByAxis: () => void;
-  filterDrawedImage: (
-    axis: "x" | "y" | "z",
-    sliceIndex: number
-  ) => { index: number; image: ImageData } | undefined;
   setEmptyCanvasSize: (axis?: "x" | "y" | "z") => void;
-  storeAllImages: (index: number, layer: string) => void;
+  syncLayerSliceData: (index: number, layer: string) => void;
   drawImageOnEmptyImage: (canvas: HTMLCanvasElement) => void;
-  storeEachLayerImage: (index: number, layer: string) => void;
-  storeImageToLayer: (
-    index: number,
-    canvas: HTMLCanvasElement
-  ) => ImageData;
   getRestLayer: () => string[];
   setIsDrawFalse: (target: number) => void;
 }

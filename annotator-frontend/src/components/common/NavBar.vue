@@ -39,13 +39,13 @@
       <div class="arrows">
         <div class="left-views guide-left-views">
           <span @click="onSwitchSliceOrientation('x')">
-            <i class="switch_font">{{ isCompact ? 'S' : 'Sagittal' }}</i>
+            <i class="switch_font">{{ isCompact2 ? 'S' : 'Sagittal' }}</i>
           </span>
           <span @click="onSwitchSliceOrientation('z')">
-            <i class="switch_font">{{ isCompact ? 'A' : 'Axial' }}</i>
+            <i class="switch_font">{{ isCompact2 ? 'A' : 'Axial' }}</i>
           </span>
           <span @click="onSwitchSliceOrientation('y')">
-            <i class="switch_font">{{ isCompact ? 'C' : 'Coronal' }}</i>
+            <i class="switch_font">{{ isCompact2 ? 'C' : 'Coronal' }}</i>
           </span>
         </div>
         
@@ -53,10 +53,10 @@
         <span class="save guide-left-sync" @click="onSave()">
           <div>
             <!-- <ion-icon name="save-outline"></ion-icon> -->
-            <ion-icon name="sync-outline"></ion-icon>
+            <ion-icon  name="sync-outline"></ion-icon>
           </div>
-          <div v-if="!isCompact">
-            <i>sync</i>
+          <div>
+            <i >sync</i>
           </div>
         </span>
         <!-- <span @click="openDialog">
@@ -135,6 +135,10 @@ let p = withDefaults(defineProps<Props>(), {
 
 const isCompact = computed(() => {
   return p.panelWidth < 800;
+});
+
+const isCompact2 = computed(() => {
+  return p.panelWidth < 400;
 });
 
 const state = reactive(p);

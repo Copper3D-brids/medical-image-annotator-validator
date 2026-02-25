@@ -2,7 +2,7 @@
  * ImageStoreHelper - Cross-axis image storage
  *
  * Extracted from DrawToolCore.ts:
- * - storeAllImages / storeImageToAxis / storeImageToLayer / storeEachLayerImage
+ * - syncLayerSliceData
  *
  * Phase 3: MaskVolume is the sole storage backend. All IPaintImages params removed.
  */
@@ -43,13 +43,6 @@ export class ImageStoreHelper extends BaseTool {
   }
 
   /**
-   * Get MaskVolume for the currently active layer.
-   */
-  private getCurrentVolume(): MaskVolume {
-    return this.getVolumeForLayer(this.ctx.gui_states.layer);
-  }
-
-  /**
    * Get the canvas element for a specific layer.
    */
   private getCanvasForLayer(layer: string): HTMLCanvasElement {
@@ -58,55 +51,13 @@ export class ImageStoreHelper extends BaseTool {
     return this.ctx.protectedData.canvases.drawingCanvasLayerMaster;
   }
 
-  // ===== Store Image To Axis =====
+  // ===== Sync Layer Slice Data =====
 
   /**
-   * Phase 3: No-op — MaskVolume storage happens in storeAllImages.
+   * Sync the current layer canvas to its MaskVolume slice and notify the parent
+   * via getMask. This is the primary write path after any draw/erase operation.
    */
-  storeImageToAxis(
-    _index: number,
-    _imageData: ImageData,
-    _axis?: "x" | "y" | "z"
-  ): void {
-    // No-op: MaskVolume is the primary storage, updated in storeAllImages
-  }
-
-  /**
-   * Retrieve the drawn image for a given axis and slice.
-   *
-   * Phase 3: Reads exclusively from MaskVolume.
-   */
-  filterDrawedImage(
-    axis: "x" | "y" | "z",
-    sliceIndex: number
-  ): { index: number; image: ImageData } | undefined {
-    try {
-      const volume = this.getCurrentVolume();
-      if (volume) {
-        const dims = volume.getDimensions();
-        const [w, h] = axis === 'z' ? [dims.width, dims.height]
-          : axis === 'y' ? [dims.width, dims.depth]
-            // Sagittal: width = depth (Z), height = height (Y)
-            : [dims.depth, dims.height];
-        const imageData = new ImageData(w, h);
-        const channelVis = this.ctx.gui_states.channelVisibility[this.ctx.gui_states.layer];
-        volume.renderLabelSliceInto(sliceIndex, axis, imageData, channelVis);
-        return { index: sliceIndex, image: imageData };
-      }
-    } catch (err) {
-      console.warn(`filterDrawedImage: Failed to read slice ${sliceIndex} on ${axis}:`, err);
-    }
-    return undefined;
-  }
-
-  // ===== Store All Images (cross-axis sync) =====
-
-  /**
-   * Store all layer images for the current slice (cross-axis sync).
-   *
-   * Phase 2: Also writes into the current layer's MaskVolume.
-   */
-  storeAllImages(index: number, layer: string): void {
+  syncLayerSliceData(index: number, layer: string): void {
     const nrrd = this.ctx.nrrd_states;
 
     // Read from the individual layer canvas (NOT master) to preserve layer isolation
@@ -170,58 +121,6 @@ export class ImageStoreHelper extends BaseTool {
     }
   }
 
-
-  // ===== Store Per-Layer Images =====
-
-  /**
-   * Store a single layer's canvas data to its MaskVolume.
-   * Reads from the individual layer canvas (not master) and uses RGB→channel reverse lookup.
-   */
-  storeEachLayerImage(index: number, layer: string): void {
-    const layerCanvas = this.getCanvasForLayer(layer);
-    this.callbacks.setEmptyCanvasSize();
-    this.callbacks.drawImageOnEmptyImage(layerCanvas);
-    const imageData = this.ctx.protectedData.ctxes.emptyCtx.getImageData(
-      0, 0,
-      this.ctx.protectedData.canvases.emptyCanvas.width,
-      this.ctx.protectedData.canvases.emptyCanvas.height
-    );
-    try {
-      const volume = this.getVolumeForLayer(layer);
-      if (volume) {
-        const activeChannel = this.ctx.gui_states.activeChannel || 1;
-        // Phase 4 Fix: Pass channel visibility map to preserve hidden channels
-        const channelVis = this.ctx.gui_states.channelVisibility[layer];
-
-        volume.setSliceLabelsFromImageData(
-          index, imageData, this.ctx.protectedData.axis, activeChannel, channelVis
-        );
-      }
-    } catch {
-      // Volume not ready — skip
-    }
-  }
-
-  /**
-   * Extract ImageData from canvas (MaskVolume storage is handled in storeAllImages).
-   */
-  storeImageToLayer(
-    _index: number,
-    canvas: HTMLCanvasElement
-  ): ImageData {
-    if (!this.ctx.nrrd_states.loadMaskJson) {
-      this.callbacks.setEmptyCanvasSize();
-      this.callbacks.drawImageOnEmptyImage(canvas);
-    }
-    const imageData = this.ctx.protectedData.ctxes.emptyCtx.getImageData(
-      0,
-      0,
-      this.ctx.protectedData.canvases.emptyCanvas.width,
-      this.ctx.protectedData.canvases.emptyCanvas.height
-    );
-    // No longer stores to paintedImages - MaskVolume is primary storage
-    return imageData;
-  }
 
 
 }

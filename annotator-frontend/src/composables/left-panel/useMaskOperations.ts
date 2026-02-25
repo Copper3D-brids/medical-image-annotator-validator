@@ -181,20 +181,19 @@ export function useMaskOperations(deps: IMaskOperationsDeps) {
      */
     const getMaskData = async (res: IToolMaskData) => {
         const { sliceData, layerId, channelId, sliceIndex, axis, width, height, clearFlag } = res;
+        const body: IReplaceMask = {
+            caseId: currentCaseDetail.value!.id,
+            sliceIndex,
+            layerId,
+            channelId,
+            axis,
+            sliceData: [...sliceData],
+            width,
+            height,
+        };
+        await useReplaceMask(body);
         if (clearFlag) {
             await useClearMaskMesh(currentCaseDetail.value!.id);
-        } else {
-            const body: IReplaceMask = {
-                caseId: currentCaseDetail.value!.id,
-                sliceIndex,
-                layerId,
-                channelId,
-                axis,
-                sliceData: [...sliceData],
-                width,
-                height,
-            };
-            await useReplaceMask(body);
         }
     };
 

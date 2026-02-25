@@ -19,11 +19,6 @@ import type { ICommXYZ } from "../coreTools/coreType";
 export interface SphereCallbacks {
   setEmptyCanvasSize: (axis?: "x" | "y" | "z") => void;
   drawImageOnEmptyImage: (canvas: HTMLCanvasElement) => void;
-  storeImageToAxis: (
-    index: number,
-    imageData: ImageData,
-    axis?: "x" | "y" | "z"
-  ) => void;
 }
 
 export class SphereTool extends BaseTool {
@@ -125,22 +120,9 @@ export class SphereTool extends BaseTool {
 
   // ===== Store Sphere Images =====
 
-  private storeSphereImages(index: number, axis: "x" | "y" | "z"): void {
-    this.callbacks.setEmptyCanvasSize(axis);
-    this.callbacks.drawImageOnEmptyImage(
-      this.ctx.protectedData.canvases.drawingSphereCanvas
-    );
-    const imageData = this.ctx.protectedData.ctxes.emptyCtx.getImageData(
-      0,
-      0,
-      this.ctx.protectedData.canvases.emptyCanvas.width,
-      this.ctx.protectedData.canvases.emptyCanvas.height
-    );
-    this.callbacks.storeImageToAxis(
-      index,
-      imageData,
-      axis
-    );
+  private storeSphereImages(_index: number, _axis: "x" | "y" | "z"): void {
+    // No-op: sphere slice storage removed in Phase 3 (MaskVolume model).
+    // SphereTool will be fully rewritten.
   }
 
   // ===== Multi-View Sphere =====

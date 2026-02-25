@@ -89,8 +89,23 @@ let isDragging = false;
 
 /** Whether navigation is in sticky mode */
 let nav_sticky = false;
+let resizeObserver: ResizeObserver | null = null;
+
 onMounted(() => {
 manageEmitters();
+
+// Get the correct panel width directly on initialization and automatically update on window resize
+resizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+        if (entry.target === left_container.value) {
+            leftPanelWidth.value = entry.contentRect.width;
+        } else if (entry.target === right_container.value) {
+            rightPanelWidth.value = entry.contentRect.width;
+        }
+    }
+});
+if (left_container.value) resizeObserver.observe(left_container.value);
+if (right_container.value) resizeObserver.observe(right_container.value);
 
 splitBar.value?.addEventListener("mousedown", function (e) {
     isDragging = true;
@@ -201,6 +216,9 @@ function togglePanelActive(panel: string, e: MouseEvent) {
 
 onUnmounted(() => {
     emitter.off("Common:NavStickyMode", emitterOnNavStickyMode);
+    if (resizeObserver) {
+        resizeObserver.disconnect();
+    }
 });
 </script>
 

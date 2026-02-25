@@ -51,8 +51,6 @@ export class NrrdTools extends DrawToolCore {
     super(container, options);
     this.container = container;
 
-    this.protectedData.previousDrawingImage =
-      this.protectedData.ctxes.emptyCtx.createImageData(1, 1);
     this.init();
     this.dragOperator = new DragOperator(
       this.container,
@@ -139,12 +137,9 @@ export class NrrdTools extends DrawToolCore {
       resetLayerCanvas: this.resetLayerCanvas,
       redrawDisplayCanvas: this.redrawDisplayCanvas,
       flipDisplayImageByAxis: this.flipDisplayImageByAxis,
-      filterDrawedImage: this.filterDrawedImage,
       setEmptyCanvasSize: this.setEmptyCanvasSize,
-      storeAllImages: this.storeAllImages,
+      syncLayerSliceData: this.syncLayerSliceData,
       drawImageOnEmptyImage: this.drawImageOnEmptyImage,
-      storeEachLayerImage: this.storeEachLayerImage,
-      storeImageToLayer: this.storeImageToLayer,
       getRestLayer: this.getRestLayer,
       setIsDrawFalse: this.setIsDrawFalse,
       getVolumeForLayer: this.getVolumeForLayer.bind(this),
@@ -686,40 +681,18 @@ export class NrrdTools extends DrawToolCore {
           this.nrrd_states.nrrd_x_pixel,
           this.nrrd_states.nrrd_y_pixel
         );
-        let imageDataLayer1, imageDataLayer2, imageDataLayer3;
         if (masksData["layer1"][i].data.length > 0) {
-          this.setEmptyCanvasSize();
-          imageDataLayer1 = this.loadingMaskByLayer(
-            masksData["layer1"],
-            i,
-            imageData
-          );
-          this.protectedData.ctxes.emptyCtx.putImageData(imageDataLayer1, 0, 0);
-          this.storeEachLayerImage(i, "layer1");
+          this.loadingMaskByLayer(masksData["layer1"], i, imageData);
         }
         if (masksData["layer2"][i].data.length > 0) {
-          this.setEmptyCanvasSize();
-          imageDataLayer2 = this.loadingMaskByLayer(
-            masksData["layer2"],
-            i,
-            imageData
-          );
-          this.protectedData.ctxes.emptyCtx.putImageData(imageDataLayer2, 0, 0);
-          this.storeEachLayerImage(i, "layer2");
+          this.loadingMaskByLayer(masksData["layer2"], i, imageData);
         }
         if (masksData["layer3"][i].data.length > 0) {
-          this.setEmptyCanvasSize();
-          imageDataLayer3 = this.loadingMaskByLayer(
-            masksData["layer3"],
-            i,
-            imageData
-          );
-          this.protectedData.ctxes.emptyCtx.putImageData(imageDataLayer3, 0, 0);
-          this.storeEachLayerImage(i, "layer3");
+          this.loadingMaskByLayer(masksData["layer3"], i, imageData);
         }
         this.setEmptyCanvasSize();
         this.protectedData.ctxes.emptyCtx.putImageData(imageData, 0, 0);
-        this.storeAllImages(i, "default");
+        this.syncLayerSliceData(i, "default");
       }
 
       this.nrrd_states.loadMaskJson = false;
@@ -1021,8 +994,6 @@ export class NrrdTools extends DrawToolCore {
     this.protectedData.backUpDisplaySlices.length = 0;
     this.protectedData.mainPreSlices = undefined;
     this.protectedData.currentShowingSlice = undefined;
-    this.protectedData.previousDrawingImage =
-      this.protectedData.ctxes.emptyCtx.createImageData(1, 1);
     this.initState = true;
     this.protectedData.axis = "z";
     this.nrrd_states.sizeFoctor = this.baseCanvasesSize;

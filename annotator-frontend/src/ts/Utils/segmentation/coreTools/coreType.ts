@@ -117,7 +117,6 @@ interface IProtected {
   Is_Draw: boolean;
   axis: "x" | "y" | "z";
   maskData: IMaskData;
-  previousDrawingImage?: ImageData;
 
   /** Dynamic per-layer canvas+ctx pairs. Replaces hardcoded LayerOne/Two/Three fields. */
   layerTargets: Map<string, ILayerRenderTarget>;
