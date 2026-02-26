@@ -926,6 +926,20 @@ function buildColorLegend(nrrdTools: Copper.NrrdTools, layerId: string) {
 // ]
 ```
 
+### Scenario H: Clearing annotations
+
+There are different levels of clearing data depending on the use case:
+
+```typescript
+// 1. Clear ALL data across ALL layers (typically used when switching cases)
+nrrdTools.clear();
+
+// 2. Clear ONLY the currently active layer (e.g. user clicks "Clear Layer" button)
+// This clears the layer's MaskVolume, clears its undo/redo history, and re-renders the canvas.
+// It also triggers the `onClearLayerVolume` callback so you can notify the backend.
+nrrdTools.clearStoreImages();
+```
+
 ---
 
 ## 13. Vue 3 Integration Pattern
@@ -1092,7 +1106,8 @@ type ChannelValue = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 | | `enableContrastDragEvents(cb)` | Enable Ctrl+drag windowing |
 | | `setDisplaySliceIndexPanel(el)` | Show slice index in a panel |
 | | `setBaseDrawDisplayCanvasesSize(n)` | Set canvas resolution multiplier (1-8) |
-| **Data** | `clear()` | Reset all volumes |
+| **Data** | `clear()` | Reset all volumes, undo histories, and sphere data |
+| | `clearStoreImages()` | Clear annotations and undo history for the *currently active layer* |
 | | `setAllSlices(slices)` | Load NRRD slices, init MaskVolumes |
 | | `setMasksFromNIfTI(map)` | Load saved NIfTI voxel data |
 | **Render** | `start` | Frame callback — pass to render loop |
