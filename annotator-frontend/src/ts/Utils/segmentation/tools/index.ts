@@ -14,6 +14,10 @@ export type { ToolContext } from "./BaseTool";
 // Drawing Tools
 export { EraserTool } from "./EraserTool";
 
+// Pan / Navigation
+export { PanTool } from "./PanTool";
+export type { PanCallbacks } from "./PanTool";
+
 // Navigation / Wheel
 export { ZoomTool } from "./ZoomTool";
 export type { ZoomCallbacks } from "./ZoomTool";

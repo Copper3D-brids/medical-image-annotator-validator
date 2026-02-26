@@ -14,6 +14,7 @@ import { CrosshairTool } from "./tools/CrosshairTool";
 import { ContrastTool } from "./tools/ContrastTool";
 import { ZoomTool } from "./tools/ZoomTool";
 import { EraserTool } from "./tools/EraserTool";
+import { PanTool } from "./tools/PanTool";
 import { ImageStoreHelper } from "./tools/ImageStoreHelper";
 import type { ToolContext } from "./tools/BaseTool";
 import { UndoManager, MaskDelta } from "./core";
@@ -63,17 +64,12 @@ export class DrawToolCore extends CommToolsData {
   protected contrastTool!: ContrastTool;
   protected zoomTool!: ZoomTool;
   protected eraserTool!: EraserTool;
+  protected panTool!: PanTool;
   protected imageStoreHelper!: ImageStoreHelper;
 
   // === Phase 1: Lifted from paintOnCanvas() closure ===
   /** Left mouse button currently held (draw/crosshair mode) */
   private leftClicked = false;
-  /** Right mouse button currently held (pan mode) */
-  private rightClicked = false;
-  /** Pan drag offset X (clientX − canvas.offsetLeft at drag start) */
-  private panMoveInnerX = 0;
-  /** Pan drag offset Y (clientY − canvas.offsetTop at drag start) */
-  private panMoveInnerY = 0;
   /** Slice index recorded when paintOnCanvas() starts, guards stale-click */
   private paintSliceIndex = 0;
   /** True while actively painting (between pointerdown and pointerup) */
@@ -138,6 +134,10 @@ export class DrawToolCore extends CommToolsData {
     );
 
     this.eraserTool = new EraserTool(toolCtx);
+
+    this.panTool = new PanTool(toolCtx, {
+      zoomActionAfterDrawSphere: () => this.zoomActionAfterDrawSphere(),
+    });
   }
 
   private initDrawToolCore() {
@@ -297,9 +297,7 @@ export class DrawToolCore extends CommToolsData {
   private paintOnCanvas() {
     // Initialize lifted class properties for this paint cycle
     this.leftClicked = false;
-    this.rightClicked = false;
-    this.panMoveInnerX = 0;
-    this.panMoveInnerY = 0;
+    this.panTool.reset();
     this.paintSliceIndex = this.protectedData.mainPreSlices.index;
     this.isPainting = false;
     this.drawingLines = [];
@@ -346,18 +344,7 @@ export class DrawToolCore extends CommToolsData {
     // sphere Wheel
     this.drawingPrameters.handleSphereWheel = this.configMouseSphereWheel();
 
-    // pan move
-    this.drawingPrameters.handleOnPanMouseMove = (e: MouseEvent) => {
-      this.protectedData.canvases.drawingCanvas.style.cursor = "grabbing";
-      this.nrrd_states.previousPanelL = e.clientX - this.panMoveInnerX;
-      this.nrrd_states.previousPanelT = e.clientY - this.panMoveInnerY;
-      this.protectedData.canvases.displayCanvas.style.left =
-        this.protectedData.canvases.drawingCanvas.style.left =
-        this.nrrd_states.previousPanelL + "px";
-      this.protectedData.canvases.displayCanvas.style.top =
-        this.protectedData.canvases.drawingCanvas.style.top =
-        this.nrrd_states.previousPanelT + "px";
-    };
+    // pan move — now handled by PanTool (listeners managed internally)
 
     // brush circle move
     this.drawingPrameters.handleOnDrawingBrushCricleMove = (e: MouseEvent) => {
@@ -398,7 +385,7 @@ export class DrawToolCore extends CommToolsData {
       }
     };
     this.drawingPrameters.handleOnDrawingMouseDown = (e: MouseEvent) => {
-      if (this.leftClicked || this.rightClicked) {
+      if (this.leftClicked || this.panTool.isActive) {
         this.protectedData.canvases.drawingCanvas.removeEventListener(
           "pointerup",
           this.drawingPrameters.handleOnDrawingMouseUp
@@ -478,22 +465,10 @@ export class DrawToolCore extends CommToolsData {
           this.handleSphereClick(e)
         }
       } else if (e.button === 2) {
-        this.rightClicked = true;
-
-        let offsetX = this.protectedData.canvases.drawingCanvas.offsetLeft;
-        let offsetY = this.protectedData.canvases.drawingCanvas.offsetTop;
-
-        this.panMoveInnerX = e.clientX - offsetX;
-        this.panMoveInnerY = e.clientY - offsetY;
-
-        this.protectedData.canvases.drawingCanvas.style.cursor = "grab";
+        this.panTool.onPointerDown(e);
         this.protectedData.canvases.drawingCanvas.addEventListener(
           "pointerup",
           this.drawingPrameters.handleOnDrawingMouseUp
-        );
-        this.protectedData.canvases.drawingCanvas.addEventListener(
-          "pointermove",
-          this.drawingPrameters.handleOnPanMouseMove
         );
       } else {
         return;
@@ -636,20 +611,7 @@ export class DrawToolCore extends CommToolsData {
         }
 
       } else if (e.button === 2) {
-        this.rightClicked = false;
-        this.protectedData.canvases.drawingCanvas.style.cursor = "grab";
-
-        setTimeout(() => {
-          this.protectedData.canvases.drawingCanvas.style.cursor = this.gui_states.defaultPaintCursor;
-        }, 2000)
-        this.protectedData.canvases.drawingCanvas.removeEventListener(
-          "pointermove",
-          this.drawingPrameters.handleOnPanMouseMove
-        );
-
-        if (this.gui_states.sphere) {
-          this.zoomActionAfterDrawSphere();
-        }
+        this.panTool.onPointerUp(e, this.gui_states.defaultPaintCursor);
       } else {
         return;
       }
@@ -676,14 +638,7 @@ export class DrawToolCore extends CommToolsData {
             true
           );
         }
-        if (this.rightClicked) {
-          this.rightClicked = false;
-          this.protectedData.canvases.drawingCanvas.style.cursor = "grab";
-          this.protectedData.canvases.drawingCanvas.removeEventListener(
-            "pointermove",
-            this.drawingPrameters.handleOnPanMouseMove
-          );
-        }
+        this.panTool.onPointerLeave();
 
         this.setIsDrawFalse(100);
         if (this.gui_states.pencil) {

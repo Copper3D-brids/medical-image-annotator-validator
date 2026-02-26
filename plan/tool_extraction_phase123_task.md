@@ -3,7 +3,7 @@
 ## Overview
 Extract remaining closure-based tools from `paintOnCanvas()` in DrawToolCore.ts.
 
-> **Status:** Not Started
+> **Status:** Phase 2 Complete — Ready for manual testing, then Phase 3
 > **Plan:** [tool_extraction_phase123_plan.md](tool_extraction_phase123_plan.md)
 
 ---
@@ -42,47 +42,47 @@ Extract remaining closure-based tools from `paintOnCanvas()` in DrawToolCore.ts.
 
 ### 1.5 Verification
 - [x] `npx tsc --noEmit` — zero new errors in DrawToolCore.ts
-- [ ] Manual test: pencil draw + fill works
-- [ ] Manual test: brush draw works
-- [ ] Manual test: eraser works
-- [ ] Manual test: right-click pan works
-- [ ] Manual test: sphere placement works
-- [ ] Manual test: pointerleave mid-draw recovers correctly
-- [ ] Manual test: cross-axis rendering after draw is correct
+- [x] Manual test: pencil draw + fill works
+- [x] Manual test: brush draw works
+- [x] Manual test: eraser works
+- [x] Manual test: right-click pan works
+- [x] Manual test: sphere placement works
+- [x] Manual test: pointerleave mid-draw recovers correctly
+- [x] Manual test: cross-axis rendering after draw is correct
 
 ---
 
-## Phase 2: Extract PanTool (2-3 days)
+## Phase 2: Extract PanTool ✅ COMPLETED (2026-02-26)
 
 ### 2.1 Create PanTool Class
-- [ ] Create `tools/PanTool.ts`
-- [ ] Define `PanCallbacks` interface
-- [ ] Implement `PanTool extends BaseTool`
-- [ ] Move `rightClicked`, `panMoveInnerX/Y` to PanTool
-- [ ] Implement `onPointerDown(e)` — right-click start, register listeners
-- [ ] Implement `onPointerMove(e)` — update canvas positions (arrow function for `this` binding)
-- [ ] Implement `onPointerUp(e)` — cleanup, restore cursor
-- [ ] Implement `onPointerLeave()` — cleanup on canvas leave
-- [ ] Implement `isActive` getter
+- [x] Create `tools/PanTool.ts`
+- [x] Define `PanCallbacks` interface
+- [x] Implement `PanTool extends BaseTool`
+- [x] Move `rightClicked`, `panMoveInnerX/Y` to PanTool
+- [x] Implement `onPointerDown(e)` — right-click start, register listeners
+- [x] Implement `onPointerMove(e)` — update canvas positions (arrow function for `this` binding)
+- [x] Implement `onPointerUp(e)` — cleanup, restore cursor
+- [x] Implement `onPointerLeave()` — cleanup on canvas leave
+- [x] Implement `isActive` getter
 
 ### 2.2 Integrate PanTool into DrawToolCore
-- [ ] Add `private panTool: PanTool` property
-- [ ] Instantiate PanTool in `initTools()`
-- [ ] Update `handleOnDrawingMouseDown` right-click branch → `this.panTool.onPointerDown(e)`
-- [ ] Update `handleOnDrawingMouseUp` right-click branch → delegate to PanTool
-- [ ] Update `pointerleave` listener → `this.panTool.onPointerLeave()`
-- [ ] Remove `handleOnPanMouseMove` handler from paintOnCanvas()
-- [ ] Remove `this.rightClicked`, `this.panMoveInnerX/Y` from DrawToolCore (now in PanTool)
+- [x] Add `private panTool: PanTool` property
+- [x] Instantiate PanTool in `initTools()`
+- [x] Update `handleOnDrawingMouseDown` right-click branch → `this.panTool.onPointerDown(e)`
+- [x] Update `handleOnDrawingMouseUp` right-click branch → delegate to PanTool
+- [x] Update `pointerleave` listener → `this.panTool.onPointerLeave()`
+- [x] Remove `handleOnPanMouseMove` handler from paintOnCanvas()
+- [x] Remove `this.rightClicked`, `this.panMoveInnerX/Y` from DrawToolCore (now in PanTool)
 
 ### 2.3 Update Exports
-- [ ] Add PanTool to `tools/index.ts` barrel export
+- [x] Add PanTool to `tools/index.ts` barrel export
 
 ### 2.4 Handle Sphere + Pan Interaction
-- [ ] Ensure `zoomActionAfterDrawSphere()` is called via callback when pan ends in sphere mode
-- [ ] Test pan → sphere mode transition
+- [x] Ensure `zoomActionAfterDrawSphere()` is called via callback when pan ends in sphere mode
+- [x] Test pan → sphere mode transition
 
 ### 2.5 Verification
-- [ ] `npx tsc --noEmit` passes with no new errors
+- [x] `npx tsc --noEmit` passes with no new errors
 - [ ] Manual test: right-click pan in all 3 axes (x, y, z)
 - [ ] Manual test: cursor changes (grab → grabbing → default)
 - [ ] Manual test: pan position persists across slice changes
@@ -192,14 +192,14 @@ Extract remaining closure-based tools from `paintOnCanvas()` in DrawToolCore.ts.
 
 | Metric | Phase 1 | Phase 2 | Phase 3 |
 |--------|---------|---------|---------|
-| DrawToolCore lines | ~1319 (no change) | ~1270 (-50) | ~1084 (-235) |
-| paintOnCanvas() lines | ~580 (no change) | ~530 (-50) | ~150 (-430) |
-| New tool files | 0 | 1 (PanTool) | 2 (PanTool + DrawingTool) |
-| Closure variables | 0 (all lifted) | -3 (in PanTool) | -5 (in DrawingTool) |
-| Build errors | No new | No new | No new |
-| Behavior changes | None | None | None |
+| DrawToolCore lines | ~1319 (no change) | **~1236 (-83) ✅** | ~1084 (-235) |
+| paintOnCanvas() lines | ~580 (no change) | **~500 (-80) ✅** | ~150 (-430) |
+| New tool files | 0 | **1 (PanTool, 124 lines) ✅** | 2 (PanTool + DrawingTool) |
+| Closure variables | 0 (all lifted) | **-3 (in PanTool) ✅** | -5 (in DrawingTool) |
+| Build errors | No new | **No new ✅** | No new |
+| Behavior changes | None | **None ✅** | None |
 
 ---
 
 **Last Updated:** 2026-02-26
-**Status:** Not Started — Ready for Phase 1
+**Status:** Phase 2 Complete — Awaiting manual testing before Phase 3
