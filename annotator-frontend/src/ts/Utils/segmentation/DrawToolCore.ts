@@ -65,6 +65,24 @@ export class DrawToolCore extends CommToolsData {
   protected eraserTool!: EraserTool;
   protected imageStoreHelper!: ImageStoreHelper;
 
+  // === Phase 1: Lifted from paintOnCanvas() closure ===
+  /** Left mouse button currently held (draw/crosshair mode) */
+  private leftClicked = false;
+  /** Right mouse button currently held (pan mode) */
+  private rightClicked = false;
+  /** Pan drag offset X (clientX − canvas.offsetLeft at drag start) */
+  private panMoveInnerX = 0;
+  /** Pan drag offset Y (clientY − canvas.offsetTop at drag start) */
+  private panMoveInnerY = 0;
+  /** Slice index recorded when paintOnCanvas() starts, guards stale-click */
+  private paintSliceIndex = 0;
+  /** True while actively painting (between pointerdown and pointerup) */
+  private isPainting = false;
+  /** Accumulated pencil stroke points for fill-on-release */
+  private drawingLines: Array<ICommXY> = [];
+  /** Eraser arc function, assigned once per paintOnCanvas() call */
+  private clearArcFn: ((x: number, y: number, size: number) => void) | null = null;
+
   // need to return to parent
   start: () => void = () => { };
 
@@ -277,22 +295,15 @@ export class DrawToolCore extends CommToolsData {
   }
 
   private paintOnCanvas() {
-    /**
-     * drag paint panel
-     */
-    let leftclicked = false;
-    let rightclicked = false;
-    let panelMoveInnerX = 0;
-    let panelMoveInnerY = 0;
-
-    // todo
-    // let currentSliceIndex = this.protectedData.mainPreSlices.index;
-    let currentSliceIndex = this.protectedData.mainPreSlices.index;
-
-    // draw lines starts position
-    let Is_Painting = false;
-    let lines: Array<ICommXY> = [];
-    const clearArc = this.useEraser();
+    // Initialize lifted class properties for this paint cycle
+    this.leftClicked = false;
+    this.rightClicked = false;
+    this.panMoveInnerX = 0;
+    this.panMoveInnerY = 0;
+    this.paintSliceIndex = this.protectedData.mainPreSlices.index;
+    this.isPainting = false;
+    this.drawingLines = [];
+    this.clearArcFn = this.useEraser();
 
     this.updateOriginAndChangedWH();
 
@@ -338,8 +349,8 @@ export class DrawToolCore extends CommToolsData {
     // pan move
     this.drawingPrameters.handleOnPanMouseMove = (e: MouseEvent) => {
       this.protectedData.canvases.drawingCanvas.style.cursor = "grabbing";
-      this.nrrd_states.previousPanelL = e.clientX - panelMoveInnerX;
-      this.nrrd_states.previousPanelT = e.clientY - panelMoveInnerY;
+      this.nrrd_states.previousPanelL = e.clientX - this.panMoveInnerX;
+      this.nrrd_states.previousPanelT = e.clientY - this.panMoveInnerY;
       this.protectedData.canvases.displayCanvas.style.left =
         this.protectedData.canvases.drawingCanvas.style.left =
         this.nrrd_states.previousPanelL + "px";
@@ -375,19 +386,19 @@ export class DrawToolCore extends CommToolsData {
     // drawing move
     this.drawingPrameters.handleOnDrawingMouseMove = (e: MouseEvent) => {
       this.protectedData.Is_Draw = true;
-      if (Is_Painting) {
+      if (this.isPainting) {
         if (this.gui_states.Eraser) {
           this.nrrd_states.stepClear = 1;
           // drawingCtx.clearRect(e.offsetX - 5, e.offsetY - 5, 25, 25);
-          clearArc(e.offsetX, e.offsetY, this.gui_states.brushAndEraserSize);
+          this.clearArcFn?.(e.offsetX, e.offsetY, this.gui_states.brushAndEraserSize);
         } else {
-          lines.push({ x: e.offsetX, y: e.offsetY });
+          this.drawingLines.push({ x: e.offsetX, y: e.offsetY });
           this.paintOnCanvasLayer(e.offsetX, e.offsetY);
         }
       }
     };
     this.drawingPrameters.handleOnDrawingMouseDown = (e: MouseEvent) => {
-      if (leftclicked || rightclicked) {
+      if (this.leftClicked || this.rightClicked) {
         this.protectedData.canvases.drawingCanvas.removeEventListener(
           "pointerup",
           this.drawingPrameters.handleOnDrawingMouseUp
@@ -396,8 +407,8 @@ export class DrawToolCore extends CommToolsData {
         return;
       }
 
-      if (currentSliceIndex !== this.protectedData.mainPreSlices.index) {
-        currentSliceIndex = this.protectedData.mainPreSlices.index;
+      if (this.paintSliceIndex !== this.protectedData.mainPreSlices.index) {
+        this.paintSliceIndex = this.protectedData.mainPreSlices.index;
       }
 
       // remove it when mouse click down
@@ -408,9 +419,9 @@ export class DrawToolCore extends CommToolsData {
 
       if (e.button === 0) {
         if (this.eventRouter?.getMode() === 'draw') {
-          leftclicked = true;
-          lines = [];
-          Is_Painting = true;
+          this.leftClicked = true;
+          this.drawingLines = [];
+          this.isPainting = true;
           this.protectedData.Is_Draw = true;
 
           if (this.gui_states.Eraser) {
@@ -464,16 +475,16 @@ export class DrawToolCore extends CommToolsData {
 
         } else if (this.gui_states.sphere && !this.eventRouter?.isCrosshairEnabled()) {
 
-          sphere(e)
+          this.handleSphereClick(e)
         }
       } else if (e.button === 2) {
-        rightclicked = true;
+        this.rightClicked = true;
 
         let offsetX = this.protectedData.canvases.drawingCanvas.offsetLeft;
         let offsetY = this.protectedData.canvases.drawingCanvas.offsetTop;
 
-        panelMoveInnerX = e.clientX - offsetX;
-        panelMoveInnerY = e.clientY - offsetY;
+        this.panMoveInnerX = e.clientX - offsetX;
+        this.panMoveInnerY = e.clientY - offsetY;
 
         this.protectedData.canvases.drawingCanvas.style.cursor = "grab";
         this.protectedData.canvases.drawingCanvas.addEventListener(
@@ -503,91 +514,11 @@ export class DrawToolCore extends CommToolsData {
       );
     }
 
-    const sphere = (e: MouseEvent) => {
-      this.protectedData.canvases.drawingCanvas.removeEventListener(
-        "wheel",
-        this.drawingPrameters.handleMouseZoomSliceWheel
-      );
-      let mouseX = e.offsetX / this.nrrd_states.sizeFoctor;
-      let mouseY = e.offsetY / this.nrrd_states.sizeFoctor;
-
-      //  record mouseX,Y, and enable crosshair function
-      this.nrrd_states.sphereOrigin[this.protectedData.axis] = [
-        mouseX,
-        mouseY,
-        this.nrrd_states.currentIndex,
-      ];
-      this.setUpSphereOrigins(mouseX, mouseY, this.nrrd_states.currentIndex);
-
-      // Store origin for the active sphere type
-      const calPos = this.gui_states.activeSphereType;
-      switch (calPos) {
-        case "tumour":
-          this.nrrd_states.tumourSphereOrigin = JSON.parse(JSON.stringify(this.nrrd_states.sphereOrigin));
-          break;
-        case "skin":
-          this.nrrd_states.skinSphereOrigin = JSON.parse(JSON.stringify(this.nrrd_states.sphereOrigin));
-          break;
-        case "nipple":
-          this.nrrd_states.nippleSphereOrigin = JSON.parse(JSON.stringify(this.nrrd_states.sphereOrigin));
-          break;
-        case "ribcage":
-          this.nrrd_states.ribSphereOrigin = JSON.parse(JSON.stringify(this.nrrd_states.sphereOrigin));
-          break;
-      }
-
-      this.nrrd_states.cursorPageX = mouseX;
-      this.nrrd_states.cursorPageY = mouseY;
-      this.enableCrosshair();
-
-      // draw circle setup width/height for sphere canvas
-      this.drawCalculatorSphere(this.nrrd_states.sphereRadius);
-      this.protectedData.canvases.drawingCanvas.addEventListener(
-        "wheel",
-        this.drawingPrameters.handleSphereWheel,
-        true
-      );
-      this.protectedData.canvases.drawingCanvas.addEventListener(
-        "pointerup",
-        this.drawingPrameters.handleOnDrawingMouseUp
-      );
-    }
-
-    const redrawPreviousImageToLayerCtx = (
-      ctx: CanvasRenderingContext2D
-    ) => {
-      const tempPreImg = this.filterDrawedImage(
-        this.protectedData.axis,
-        this.nrrd_states.currentIndex,
-      )?.image;
-      this.protectedData.canvases.emptyCanvas.width =
-        this.protectedData.canvases.emptyCanvas.width;
-
-      this.protectedData.ctxes.emptyCtx.putImageData(tempPreImg!, 0, 0);
-      ctx.imageSmoothingEnabled = false;
-      // Coronal (axis='y') Z-flip: same as renderSliceToCanvas.
-      if (this.protectedData.axis === 'y') {
-        ctx.save();
-        ctx.scale(1, -1);
-        ctx.translate(0, -this.nrrd_states.changedHeight);
-      }
-      ctx.drawImage(
-        this.protectedData.canvases.emptyCanvas,
-        0,
-        0,
-        this.nrrd_states.changedWidth,
-        this.nrrd_states.changedHeight
-      );
-      if (this.protectedData.axis === 'y') {
-        ctx.restore();
-      }
-    };
-
     this.drawingPrameters.handleOnDrawingMouseUp = (e: MouseEvent) => {
       if (e.button === 0) {
 
-        if (this.eventRouter?.getMode() === 'draw' || Is_Painting) {
-          leftclicked = false;
+        if (this.eventRouter?.getMode() === 'draw' || this.isPainting) {
+          this.leftClicked = false;
           let { ctx, canvas } = this.setCurrentLayer();
 
           ctx.closePath();
@@ -601,12 +532,12 @@ export class DrawToolCore extends CommToolsData {
               // Clear only the current layer canvas (NOT master)
               canvas.width = canvas.width;
               // Redraw previous layer data from volume
-              redrawPreviousImageToLayerCtx(ctx);
+              this.redrawPreviousImageToLayerCtx(ctx);
               // Draw new pencil strokes on current layer canvas
               ctx.beginPath();
-              ctx.moveTo(lines[0].x, lines[0].y);
-              for (let i = 1; i < lines.length; i++) {
-                ctx.lineTo(lines[i].x, lines[i].y);
+              ctx.moveTo(this.drawingLines[0].x, this.drawingLines[0].y);
+              for (let i = 1; i < this.drawingLines.length; i++) {
+                ctx.lineTo(this.drawingLines[i].x, this.drawingLines[i].y);
               }
               ctx.closePath();
               ctx.lineWidth = 1;
@@ -622,7 +553,7 @@ export class DrawToolCore extends CommToolsData {
             this.gui_states.layer
           );
 
-          Is_Painting = false;
+          this.isPainting = false;
 
           // Push delta to UndoManager (new Delta-based undo system)
           if (this.preDrawSlice) {
@@ -705,7 +636,7 @@ export class DrawToolCore extends CommToolsData {
         }
 
       } else if (e.button === 2) {
-        rightclicked = false;
+        this.rightClicked = false;
         this.protectedData.canvases.drawingCanvas.style.cursor = "grab";
 
         setTimeout(() => {
@@ -731,9 +662,9 @@ export class DrawToolCore extends CommToolsData {
     this.protectedData.canvases.drawingCanvas.addEventListener(
       "pointerleave",
       (e: MouseEvent) => {
-        Is_Painting = false;
-        if (leftclicked) {
-          leftclicked = false;
+        this.isPainting = false;
+        if (this.leftClicked) {
+          this.leftClicked = false;
           this.protectedData.ctxes.drawingLayerMasterCtx.closePath();
           this.protectedData.canvases.drawingCanvas.removeEventListener(
             "pointermove",
@@ -745,8 +676,8 @@ export class DrawToolCore extends CommToolsData {
             true
           );
         }
-        if (rightclicked) {
-          rightclicked = false;
+        if (this.rightClicked) {
+          this.rightClicked = false;
           this.protectedData.canvases.drawingCanvas.style.cursor = "grab";
           this.protectedData.canvases.drawingCanvas.removeEventListener(
             "pointermove",
@@ -860,6 +791,86 @@ export class DrawToolCore extends CommToolsData {
         this.redrawDisplayCanvas();
       }
     };
+  }
+
+  /** Extracted from paintOnCanvas() — handles sphere placement on left-click */
+  private handleSphereClick(e: MouseEvent) {
+    this.protectedData.canvases.drawingCanvas.removeEventListener(
+      "wheel",
+      this.drawingPrameters.handleMouseZoomSliceWheel
+    );
+    let mouseX = e.offsetX / this.nrrd_states.sizeFoctor;
+    let mouseY = e.offsetY / this.nrrd_states.sizeFoctor;
+
+    //  record mouseX,Y, and enable crosshair function
+    this.nrrd_states.sphereOrigin[this.protectedData.axis] = [
+      mouseX,
+      mouseY,
+      this.nrrd_states.currentIndex,
+    ];
+    this.setUpSphereOrigins(mouseX, mouseY, this.nrrd_states.currentIndex);
+
+    // Store origin for the active sphere type
+    const calPos = this.gui_states.activeSphereType;
+    switch (calPos) {
+      case "tumour":
+        this.nrrd_states.tumourSphereOrigin = JSON.parse(JSON.stringify(this.nrrd_states.sphereOrigin));
+        break;
+      case "skin":
+        this.nrrd_states.skinSphereOrigin = JSON.parse(JSON.stringify(this.nrrd_states.sphereOrigin));
+        break;
+      case "nipple":
+        this.nrrd_states.nippleSphereOrigin = JSON.parse(JSON.stringify(this.nrrd_states.sphereOrigin));
+        break;
+      case "ribcage":
+        this.nrrd_states.ribSphereOrigin = JSON.parse(JSON.stringify(this.nrrd_states.sphereOrigin));
+        break;
+    }
+
+    this.nrrd_states.cursorPageX = mouseX;
+    this.nrrd_states.cursorPageY = mouseY;
+    this.enableCrosshair();
+
+    // draw circle setup width/height for sphere canvas
+    this.drawCalculatorSphere(this.nrrd_states.sphereRadius);
+    this.protectedData.canvases.drawingCanvas.addEventListener(
+      "wheel",
+      this.drawingPrameters.handleSphereWheel,
+      true
+    );
+    this.protectedData.canvases.drawingCanvas.addEventListener(
+      "pointerup",
+      this.drawingPrameters.handleOnDrawingMouseUp
+    );
+  }
+
+  /** Extracted from paintOnCanvas() — redraws persisted layer data onto ctx before new pencil fill */
+  private redrawPreviousImageToLayerCtx(ctx: CanvasRenderingContext2D) {
+    const tempPreImg = this.filterDrawedImage(
+      this.protectedData.axis,
+      this.nrrd_states.currentIndex,
+    )?.image;
+    this.protectedData.canvases.emptyCanvas.width =
+      this.protectedData.canvases.emptyCanvas.width;
+
+    this.protectedData.ctxes.emptyCtx.putImageData(tempPreImg!, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    // Coronal (axis='y') Z-flip: same as renderSliceToCanvas.
+    if (this.protectedData.axis === 'y') {
+      ctx.save();
+      ctx.scale(1, -1);
+      ctx.translate(0, -this.nrrd_states.changedHeight);
+    }
+    ctx.drawImage(
+      this.protectedData.canvases.emptyCanvas,
+      0,
+      0,
+      this.nrrd_states.changedWidth,
+      this.nrrd_states.changedHeight
+    );
+    if (this.protectedData.axis === 'y') {
+      ctx.restore();
+    }
   }
 
   /*************************************May consider to move outside *******************************************/
