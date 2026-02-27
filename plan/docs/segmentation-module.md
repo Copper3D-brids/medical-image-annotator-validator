@@ -580,6 +580,8 @@ abstract class BaseTool {
 | **ContrastTool** | [tools/ContrastTool.ts](annotator-frontend/src/ts/Utils/segmentation/tools/ContrastTool.ts) | 窗位/窗宽调节 |
 | **ZoomTool** | [tools/ZoomTool.ts](annotator-frontend/src/ts/Utils/segmentation/tools/ZoomTool.ts) | 缩放/平移 |
 | **EraserTool** | [tools/EraserTool.ts](annotator-frontend/src/ts/Utils/segmentation/tools/EraserTool.ts) | 橡皮擦 |
+| **PanTool** | [tools/PanTool.ts](annotator-frontend/src/ts/Utils/segmentation/tools/PanTool.ts) | 右键拖拽平移画布（从 DrawToolCore 提取，Phase 2）|
+| **DrawingTool** | [tools/DrawingTool.ts](annotator-frontend/src/ts/Utils/segmentation/tools/DrawingTool.ts) | 铅笔/画笔/橡皮擦绘画逻辑（从 DrawToolCore 提取，Phase 3）|
 | **ImageStoreHelper** | [tools/ImageStoreHelper.ts](annotator-frontend/src/ts/Utils/segmentation/tools/ImageStoreHelper.ts) | Canvas↔Volume 同步 |
 | **DragSliceTool** | [tools/DragSliceTool.ts](annotator-frontend/src/ts/Utils/segmentation/tools/DragSliceTool.ts) | 拖拽切换切片 |
 
@@ -646,6 +648,140 @@ Sphere 模式激活时：
 | 创建 | `NrrdTools.setAllSlices()` | `new MaskVolume(vw, vh, vd, 1)` |
 | 清空 | `NrrdTools.clear()` | `sphereMaskVolume = null` |
 | 存储 | `nrrd_states.sphereMaskVolume` | — |
+
+### 7.4 PanTool（右键平移工具）
+
+**文件**: [tools/PanTool.ts](annotator-frontend/src/ts/Utils/segmentation/tools/PanTool.ts) — 124 lines
+
+从 `DrawToolCore.paintOnCanvas()` 提取（Phase 2, 2026-02-26）。处理所有右键拖拽平移逻辑。
+
+#### PanCallbacks 接口
+
+```ts
+interface PanCallbacks {
+  getPanelOffset: () => { left: number; top: number };      // 获取当前 panel 偏移量
+  setPanelOffset: (left: number, top: number) => void;      // 设置 panel 偏移量
+  zoomActionAfterDrawSphere: () => void;                    // Sphere 模式下 pan 结束后重绘
+}
+```
+
+#### 关键属性与方法
+
+| 成员 | 说明 |
+|------|------|
+| `rightClicked: boolean` | 右键是否按下 |
+| `panMoveInnerX/Y: number` | 平移拖拽起始位置偏移 |
+| `isActive: boolean` (getter) | 是否正在平移（用于 DrawToolCore re-entry guard）|
+| `onPointerDown(e)` | 右键按下：记录起始偏移，更改光标为 grab |
+| `onPointerMove(e)` | 拖拽中：计算并更新 panel 位置 |
+| `onPointerUp(e)` | 右键松开：清理状态，恢复光标 |
+| `onPointerLeave()` | canvas 离开：清理状态 |
+| `reset()` | `paintOnCanvas()` 每次调用时重置状态 |
+
+#### 与 DrawToolCore 集成
+
+```ts
+// DrawToolCore.initTools()
+this.panTool = new PanTool(toolCtx, {
+  getPanelOffset: () => ({ left: this.nrrd_states.previousPanelL, top: this.nrrd_states.previousPanelT }),
+  setPanelOffset: (left, top) => { /* update nrrd_states + DOM */ },
+  zoomActionAfterDrawSphere: () => this.zoomActionAfterDrawSphere(),
+});
+
+// handleOnDrawingMouseDown — right-click branch
+this.panTool.onPointerDown(e);
+
+// handleOnDrawingMouseUp — right-click branch
+this.panTool.onPointerUp(e);
+
+// pointerleave
+this.panTool.onPointerLeave();
+```
+
+---
+
+### 7.5 DrawingTool（绘画工具）
+
+**文件**: [tools/DrawingTool.ts](annotator-frontend/src/ts/Utils/segmentation/tools/DrawingTool.ts) — 284 lines
+
+从 `DrawToolCore.paintOnCanvas()` 提取（Phase 3, 2026-02-26）。处理铅笔、画笔、橡皮擦的所有绘画逻辑，包含 Undo 快照。
+
+#### DrawingCallbacks 接口
+
+```ts
+interface DrawingCallbacks {
+  setCurrentLayer: () => { ctx: CanvasRenderingContext2D; canvas: HTMLCanvasElement };
+  compositeAllLayers: () => void;
+  syncLayerSliceData: (index: number, layer: string) => void;
+  filterDrawedImage: (axis: "x" | "y" | "z", index: number) => { image: ImageData } | undefined;
+  getVolumeForLayer: (layer: string) => MaskVolume | undefined;
+  pushUndoDelta: (delta: MaskDelta) => void;
+  getEraserUrls: () => string[];
+}
+```
+
+#### 关键属性与方法
+
+| 成员 | 说明 |
+|------|------|
+| `leftClicked: boolean` | 左键是否按下 |
+| `isPainting: boolean` | 是否正在绘画（mousedown 到 mouseup 期间）|
+| `drawingLines: ICommXY[]` | 铅笔模式路径点集合 |
+| `clearArcFn` | 当前帧的橡皮擦函数（由 `reset()` 注入）|
+| `preDrawSlice/Axis/SliceIndex` | mousedown 时的 undo 快照数据 |
+| `isActive: boolean` (getter) | 暴露 `leftClicked`，用于 DrawToolCore re-entry guard |
+| `painting: boolean` (getter) | 暴露 `isPainting`，用于 mouseUp 条件判断 |
+| `reset(clearArcFn)` | 每次 `paintOnCanvas()` 调用时重置状态并注入新橡皮擦函数 |
+| `onPointerDown(e)` | 左键按下：设置光标、初始化路径、capturePreDrawSnapshot |
+| `onPointerMove(e)` | 移动：橡皮擦分支用 clearArcFn，绘画分支积累路径并调用 paintOnCanvasLayer |
+| `onPointerUp(e)` | 左键松开：铅笔 fill/画笔 closePath、syncLayerSliceData、pushUndoDelta |
+| `onPointerLeave()` | canvas 离开：重置状态，**返回 `boolean`** 表示是否有未完成绘画 |
+
+#### onPointerLeave 返回值约定
+
+`onPointerLeave()` 返回 `true` 表示用户正在绘画时离开（即 DrawToolCore 需要执行 pointermove listener 清理）：
+
+```ts
+// DrawToolCore.pointerleave handler
+const wasDrawing = this.drawingTool.onPointerLeave();
+if (wasDrawing) {
+  this.drawingCanvas.removeEventListener("pointermove", this.drawingPrameters.handleOnDrawingMouseMove);
+  this.drawingCanvas.removeEventListener("wheel", this.drawingPrameters.handleOnDrawingSphereWheel);
+}
+```
+
+#### 与 DrawToolCore 集成
+
+```ts
+// DrawToolCore.initTools()
+this.drawingTool = new DrawingTool(toolCtx, {
+  setCurrentLayer: () => this.setCurrentLayer(),
+  compositeAllLayers: () => this.compositeAllLayers(),
+  syncLayerSliceData: (index, layer) => this.syncLayerSliceData(index, layer),
+  filterDrawedImage: (axis, index) => this.filterDrawedImage(axis, index),
+  getVolumeForLayer: (layer) => this.getVolumeForLayer(layer),
+  pushUndoDelta: (delta) => this.undoManager.push(delta),
+  getEraserUrls: () => this.eraserUrls,
+});
+
+// paintOnCanvas() — reset each call
+this.drawingTool.reset(this.useEraser());
+
+// Re-entry guard
+if (this.drawingTool.isActive || this.panTool.isActive) return;
+```
+
+#### Undo 快照机制
+
+```
+mousedown → capturePreDrawSnapshot()
+  → callbacks.getVolumeForLayer(layer).getSliceUint8(sliceIndex, axis)
+  → 保存到 preDrawSlice / preDrawAxis / preDrawSliceIndex
+
+mouseup → pushUndoDelta()
+  → callbacks.getVolumeForLayer(layer).getSliceUint8(sliceIndex, axis)  ← 操作后
+  → callbacks.pushUndoDelta({ layerId, axis, sliceIndex, oldSlice: preDrawSlice, newSlice })
+```
 
 ---
 

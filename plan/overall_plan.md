@@ -21,10 +21,10 @@ Priority 4 (Deferred)   → State Management (lightweight improvements only)
 
 | Task | Success Rate | Risk | Benefit | Duration | Priority | Status |
 |------|--------------|------|---------|----------|----------|--------|
-| **Mask Storage Migration** | 85-90% | 🟢 Low-Medium | 🟢 **High** | 2-3 weeks | ⭐⭐⭐⭐⭐ | Planned |
-| **Tool Extraction - Phase 1** | 75-80% | 🟡 Medium | 🟢 Medium | 1 week | ⭐⭐⭐⭐ | Planned |
-| **Tool Extraction - Phase 2** | 70-75% | 🟡 Medium | 🟡 Medium | 1-2 weeks | ⭐⭐⭐ | Planned |
-| **Tool Extraction - Phase 3** | 65-70% | 🟡 Medium-High | 🟡 Medium | 2-3 weeks | ⭐⭐ | Optional |
+| **Mask Storage Migration** | 85-90% | 🟢 Low-Medium | 🟢 **High** | 2-3 weeks | ⭐⭐⭐⭐⭐ | ✅ Completed |
+| **Tool Extraction - Phase 1** | 75-80% | 🟡 Medium | 🟢 Medium | 1 week | ⭐⭐⭐⭐ | ✅ Completed |
+| **Tool Extraction - Phase 2** | 70-75% | 🟡 Medium | 🟡 Medium | 1-2 weeks | ⭐⭐⭐ | ✅ Completed |
+| **Tool Extraction - Phase 3** | 65-70% | 🟡 Medium-High | 🟡 Medium | 2-3 weeks | ⭐⭐ | ✅ Completed |
 | **State Management Refactor** | 60-65% | 🔴 **High** | 🟡 Medium | 6-8 weeks | ⭐ | **Not Recommended** |
 
 ---
@@ -200,39 +200,25 @@ export class DrawToolCore extends CommToolsData {
 - Unit tests for PanTool
 - Integration tests pass
 
-**Detailed Plan:** Will be generated after Phase 1 completion
+**Detailed Plan:** [tool_extraction_phase123_plan.md](completed/tool_extraction_phase123_plan.md) ✅
 
 ---
 
-### Priority 4: Tool Extraction - Phase 3 (Optional, Weeks 7-8+)
+### Priority 4: Tool Extraction - Phase 3 (Completed 2026-02-27) ✅
 
-**Objective:** Extract PencilTool and BrushTool
+**Objective:** Extract DrawingTool (pencil + brush + eraser drawing logic) from DrawToolCore
 
-**Decision Point:** Only proceed if Phase 1-2 are successful and benefits are clear.
+**Outcome:** Decision was "proceed" — DrawingTool extracted successfully.
 
-**Why Optional:**
-- ⚠️ Higher complexity (shared drawing logic)
-- ⚠️ Tight coupling with layer management
-- ⚠️ Could keep `paintOnCanvas()` as tool coordinator
+**Result:**
+- `DrawingTool` class (284 lines) extracted from DrawToolCore
+- `DrawingCallbacks` interface (7 callbacks) for inversion of control
+- DrawToolCore reduced by −249 total lines (vs original 1319)
+- `paintOnCanvas()` reduced by −224 lines (vs original ~580)
+- Zero new TypeScript errors; all manual tests passed
 
-**Evaluation Criteria (after Phase 2):**
-- Did Phase 1-2 improve code maintainability?
-- Are bugs easier to fix?
-- Is adding new tools easier?
-- Team velocity impact?
-
-**If Proceed:**
-1. Extract PencilTool (segmentation mode)
-2. Extract BrushTool (brush mode)
-3. Refactor event routing
-4. Comprehensive regression testing
-
-**If Skip:**
-- Keep `paintOnCanvas()` as tool coordinator
-- Document the decision
-- Move to new feature development
-
-**Detailed Plan:** Will be generated only if decision is "proceed"
+**Detailed Plan:** [tool_extraction_phase123_plan.md](completed/tool_extraction_phase123_plan.md) ✅
+**Task List:** [tool_extraction_phase123_task.md](completed/tool_extraction_phase123_task.md) ✅
 
 ---
 
@@ -676,7 +662,7 @@ function updateSpherePosition(
 
 ---
 
-**Last Updated:** 2026-02-12
-**Next Review:** After Mask Storage Migration completion
+**Last Updated:** 2026-02-27
+**Next Review:** N/A — All planned phases complete
 **Owner:** Development Team
-**Status:** Approved for Phase 1 (Mask Storage Migration)
+**Status:** ✅ All Tool Extraction Phases (1-2-3) and Mask Storage Migration Complete. State Management Refactor remains Not Recommended.

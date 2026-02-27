@@ -3,7 +3,7 @@
 ## Overview
 Extract remaining closure-based tools from `paintOnCanvas()` in DrawToolCore.ts.
 
-> **Status:** Phase 3 Complete ✅ — Awaiting manual testing
+> **Status:** All Phases Complete ✅ — Post-Completion done 2026-02-27
 > **Plan:** [tool_extraction_phase123_plan.md](tool_extraction_phase123_plan.md)
 
 ---
@@ -149,39 +149,39 @@ Extract remaining closure-based tools from `paintOnCanvas()` in DrawToolCore.ts.
 
 ### 3.7 Verification
 - [x] `npx tsc --noEmit` passes with no new errors (745 pre-existing, 0 new)
-- [ ] Manual test: pencil draw + fill on each layer
-- [ ] Manual test: brush continuous draw on each layer
-- [ ] Manual test: eraser on each layer
-- [ ] Manual test: undo/redo after pencil draw
-- [ ] Manual test: undo/redo after brush draw
-- [ ] Manual test: undo/redo after eraser
-- [ ] Manual test: pointerleave mid-draw → resume drawing
-- [ ] Manual test: cross-axis sync after drawing
-- [ ] Manual test: layer switching during/after drawing
-- [ ] Manual test: opacity/color changes between strokes
-- [ ] Manual test: pencil fill with complex path (self-intersecting)
+- [x] Manual test: pencil draw + fill on each layer
+- [x] Manual test: brush continuous draw on each layer
+- [x] Manual test: eraser on each layer
+- [x] Manual test: undo/redo after pencil draw
+- [x] Manual test: undo/redo after brush draw
+- [x] Manual test: undo/redo after eraser
+- [x] Manual test: pointerleave mid-draw → resume drawing
+- [x] Manual test: cross-axis sync after drawing
+- [x] Manual test: layer switching during/after drawing
+- [x] Manual test: opacity/color changes between strokes
+- [x] Manual test: pencil fill with complex path (self-intersecting)
 - [x] Verify DrawToolCore line count reduced by ~200+ lines (actual: **-166 from Phase 2, -249 from original**)
 
 ---
 
-## Post-Completion
+## Post-Completion ✅ COMPLETED (2026-02-27)
 
 ### Code Review Checklist
-- [ ] No closure variables remain in `paintOnCanvas()` (only `this.xxx` references)
-- [ ] All tools follow consistent BaseTool pattern
-- [ ] Callback interfaces are minimal (no unnecessary methods)
-- [ ] Event listener add/remove is balanced (no leaks)
-- [ ] Arrow functions used for event handlers that need `this` binding
+- [x] No closure variables remain in `paintOnCanvas()` (only `this.xxx` references)
+- [x] All tools follow consistent BaseTool pattern
+- [x] Callback interfaces are minimal (no unnecessary methods)
+- [x] Event listener add/remove is balanced (no leaks)
+- [x] Arrow functions used for event handlers that need `this` binding
 
 ### Documentation
-- [ ] Update `plan/overall_plan.md` status
-- [ ] Update `plan/docs/segmentation-module.md` with new tool architecture
-- [ ] Move completed plan/task files to `plan/completed/`
+- [x] Update `plan/overall_plan.md` status
+- [x] Update `plan/docs/segmentation-module.md` with new tool architecture
+- [x] Move completed plan/task files to `plan/completed/`
 
 ### Metrics
-- [ ] Record DrawToolCore line count: before → after
-- [ ] Record `paintOnCanvas()` line count: before → after
-- [ ] Record total tools/ directory line count
+- [x] DrawToolCore line count: **~1319 → ~1070** (−249 total, across Phase 2+3)
+- [x] `paintOnCanvas()` line count: **~580 → ~356** (−224 total)
+- [x] tools/ directory: **PanTool.ts (124 lines) + DrawingTool.ts (284 lines)** added
 
 ---
 
@@ -198,5 +198,5 @@ Extract remaining closure-based tools from `paintOnCanvas()` in DrawToolCore.ts.
 
 ---
 
-**Last Updated:** 2026-02-26
-**Status:** Phase 3 Complete — Awaiting manual testing
+**Last Updated:** 2026-02-27
+**Status:** All Phases Complete ✅ — Moved to plan/completed/
