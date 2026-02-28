@@ -1,4 +1,4 @@
-# NrrdTools Usage Guide
+## NrrdTools Usage Guide
 
 > Copper3D `NrrdTools` — Medical Image Segmentation Annotation Engine
 
@@ -6,7 +6,7 @@
 
 ---
 
-## Table of Contents
+### Table of Contents
 
 1. [Quick Start](#1-quick-start)
 2. [Constructor & Initialization](#2-constructor--initialization)
@@ -25,7 +25,7 @@
 
 ---
 
-## 1. Quick Start
+### 1. Quick Start
 
 ```typescript
 import * as Copper from 'copper3d';
@@ -35,7 +35,7 @@ const container = document.getElementById('viewer') as HTMLDivElement;
 const nrrdTools = new Copper.NrrdTools(container);
 
 // 2. After NRRD images are loaded via Copper scene:
-nrrdTools.clear();
+nrrdTools.reset();
 nrrdTools.setAllSlices(allSlices);       // allSlices from Copper scene loader
 
 // 3. Hook drawing callbacks
@@ -56,9 +56,9 @@ scene.addPreRenderCallbackFunction(nrrdTools.start);
 
 ---
 
-## 2. Constructor & Initialization
+### 2. Constructor & Initialization
 
-### Signature
+#### Signature
 
 ```typescript
 new Copper.NrrdTools(container: HTMLDivElement, options?: { layers?: string[] })
@@ -69,13 +69,13 @@ new Copper.NrrdTools(container: HTMLDivElement, options?: { layers?: string[] })
 | `container` | `HTMLDivElement` | required | The DOM element that will host all annotation canvases |
 | `options.layers` | `string[]` | `["layer1","layer2","layer3"]` | Named layers to create. Each layer gets its own `MaskVolume` and canvas |
 
-### Example: Single-layer (minimal)
+#### Example: Single-layer (minimal)
 
 ```typescript
 const nrrdTools = new Copper.NrrdTools(document.getElementById('viewer') as HTMLDivElement);
 ```
 
-### Example: Custom layer set
+#### Example: Custom layer set
 
 ```typescript
 // For a 4-layer segmentation workflow:
@@ -88,7 +88,7 @@ const nrrdTools = new Copper.NrrdTools(container, {
 > **Important**: The layer list you pass here must match what your backend and UI expect.
 > Adding or removing layers later requires re-instantiation.
 
-### Optional display panel
+#### Optional display panel
 
 Attach a panel element to show current slice index in the viewer:
 
@@ -97,7 +97,7 @@ const slicePanel = document.getElementById('slice-index-panel') as HTMLDivElemen
 nrrdTools.setDisplaySliceIndexPanel(slicePanel);
 ```
 
-### Optional GUI (dat.GUI)
+#### Optional GUI (dat.GUI)
 
 If your project uses `dat.GUI`, wire up the built-in control panel:
 
@@ -109,16 +109,16 @@ nrrdTools.setupGUI(gui as any);
 
 ---
 
-## 3. Data Loading
+### 3. Data Loading
 
-### 3.1 Loading NRRD / NIfTI image slices
+#### 3.1 Loading NRRD / NIfTI image slices
 
 This is the entry point that initializes all `MaskVolume` instances to the correct voxel dimensions.
 Must be called **after** Copper has loaded and decoded the NRRD files.
 
 ```typescript
 // Reset state from previous case
-nrrdTools.clear();
+nrrdTools.reset();
 
 // allSlices is the array of decoded NRRD slice objects returned by Copper's loader
 nrrdTools.setAllSlices(allSlices);
@@ -127,7 +127,7 @@ nrrdTools.setAllSlices(allSlices);
 > After `setAllSlices()` returns, you may safely call all layer/channel/color APIs.
 > Calling color APIs **before** `setAllSlices()` will silently fail (no MaskVolume exists yet).
 
-### 3.2 Loading existing mask data (NIfTI)
+#### 3.2 Loading existing mask data (NIfTI)
 
 If the user has previously saved annotations, reload them into the volumes:
 
@@ -148,7 +148,7 @@ const loadingBar = { value: 0 }; // must be a reactive object with .value
 nrrdTools.setMasksFromNIfTI(layerVoxels, loadingBar);
 ```
 
-### Scenario: Loading a saved case
+#### Scenario: Loading a saved case
 
 ```typescript
 async function loadCase(caseDetail: ICaseDetail) {
@@ -174,11 +174,11 @@ async function loadCase(caseDetail: ICaseDetail) {
 
 ---
 
-## 4. Render Loop Integration
+### 4. Render Loop Integration
 
 `NrrdTools.start` is a function property that must be called every frame to refresh the annotation overlay on top of the Three.js rendered CT/MRI slice.
 
-### With Copper scene
+#### With Copper scene
 
 ```typescript
 // Register once after initialization
@@ -188,7 +188,7 @@ const callbackId = scene.addPreRenderCallbackFunction(nrrdTools.start);
 scene.removePreRenderCallbackFunction(callbackId);
 ```
 
-### Manual render loop
+#### Manual render loop
 
 ```typescript
 function animate() {
@@ -201,9 +201,9 @@ animate();
 
 ---
 
-## 5. Drawing Setup
+### 5. Drawing Setup
 
-### 5.1 `drag()` — Slice navigation
+#### 5.1 `drag()` — Slice navigation
 
 Enables dragging to scroll through CT/MRI slices. Call once before adding to the render loop.
 
@@ -217,7 +217,7 @@ nrrdTools.drag({
 });
 ```
 
-### 5.2 `draw()` — Annotation callbacks
+#### 5.2 `draw()` — Annotation callbacks
 
 Hooks into the drawing events. The `getMaskData` callback is the primary integration point for syncing annotations to a backend.
 
@@ -261,7 +261,7 @@ nrrdTools.draw({
   //   tumour  → channel 1
   //   ribcage → channel 3
   //   skin    → channel 4
-  //   nipple  → channel 5
+  //   nipple  → channel 2
   //
   // Origins are ICommXYZ: { x: [mx, my, slice], y: [...], z: [...] }
   // representing sphere center coordinates on all 3 axis views.
@@ -274,36 +274,43 @@ nrrdTools.draw({
 });
 ```
 
-### 5.3 SphereTool — 3D Sphere Placement & Distance Calculator
+#### 5.3 SphereTool — 3D Sphere Placement & Distance Calculator
 
-The SphereTool provides unified sphere placement with 4 sphere types controlled by `gui_states.activeSphereType`. The active type determines which origin and color are used. The old separate "Calculator" mode has been merged into SphereTool.
+The SphereTool provides unified sphere placement with 4 sphere types controlled by `gui_states.mode.activeSphereType`. The active type determines which origin and color are used. The old separate "Calculator" mode has been merged into SphereTool.
 
-#### Sphere Types & Channel Mapping
+##### Sphere Types & Channel Mapping
 
-Each sphere type maps to a specific channel on layer1. Switch between types using `gui_states.activeSphereType`:
+Each sphere type maps to a specific channel on layer1. Switch between types using `gui_states.mode.activeSphereType`:
 
 | Sphere Type | Channel | Default Color | `activeSphereType` value |
 |-------------|---------|---------------|---------------------|
-| tumour      | 1       | `#00ff00` (green) | `"tumour"` (default) |
-| ribcage     | 3       | `#0000ff` (blue) | `"ribcage"` |
-| skin        | 4       | `#ffff00` (yellow) | `"skin"` |
-| nipple      | 5       | `#ff00ff` (magenta) | `"nipple"` |
+| tumour      | 1       | `#10b981` (Emerald) | `"tumour"` (default) |
+| nipple      | 2       | `#f43f5e` (Rose) | `"nipple"` |
+| ribcage     | 3       | `#3b82f6` (Blue) | `"ribcage"` |
+| skin        | 4       | `#fbbf24` (Amber) | `"skin"` |
 
-These mappings are exported as `SPHERE_CHANNEL_MAP` and `SPHERE_COLORS` from `tools/SphereTool.ts`.
+These mappings are exported as `SPHERE_CHANNEL_MAP` and `SPHERE_LABELS` from `tools/SphereTool.ts`. (`SPHERE_COLORS` was removed — colors are now derived dynamically from each volume's `colorMap`.)
 
-#### Switching Sphere Type
+##### Switching Sphere Type
+
+Use the public API — do NOT mutate `gui_states.mode.activeSphereType` directly, as `setActiveSphereType()` also updates brush/fill color as a side-effect:
 
 ```typescript
-// Switch to skin sphere type
-gui_states.activeSphereType = "skin";
-// The next sphere placed will use channel 4 (yellow)
-// Origin is stored in nrrd_states.skinSphereOrigin
+// Set active sphere type (also updates fillColor / brushColor)
+nrrdTools.setActiveSphereType('nipple');   // channel 2, Rose #f43f5e
+nrrdTools.setActiveSphereType('tumour');   // channel 1, Emerald #10b981
+nrrdTools.setActiveSphereType('skin');     // channel 4, Amber #fbbf24
+nrrdTools.setActiveSphereType('ribcage');  // channel 3, Blue #3b82f6
+
+// Read current type
+const type = nrrdTools.getActiveSphereType();
+// → 'tumour' | 'skin' | 'nipple' | 'ribcage'
 ```
 
-#### Interaction Flow
+##### Interaction Flow
 
 ```
-Sphere mode activated (gui_states.sphere = true, keyboard shortcut: 'q'):
+Sphere mode activated (gui_states.mode.sphere = true, keyboard shortcut: 'q'):
   ├─ Shift key DISABLED (no draw mode)
   ├─ Crosshair toggle allowed (S key)
   │
@@ -315,16 +322,16 @@ Sphere mode activated (gui_states.sphere = true, keyboard shortcut: 'q'):
                       restore zoom/slice wheel
 ```
 
-#### SphereMaskVolume
+##### SphereMaskVolume
 
 Sphere 3D data is stored in a dedicated `MaskVolume` (`nrrd_states.sphereMaskVolume`), separate from the layer draw mask volumes. This prevents sphere overlay data from polluting layer1's annotations.
 
 - **Created** in `setAllSlices()` (same dimensions as CT volume)
-- **Cleared** in `clear()` (when switching cases)
+- **Cleared** in `reset()` (when switching cases)
 
 > **Note**: Currently sphere data does NOT write to layer1's MaskVolume. The channel mapping and `sphereMaskVolume` are reserved for future integration.
 
-#### Scenario: Sphere mode with AI backend (distance calculation)
+##### Scenario: Sphere mode with AI backend (distance calculation)
 
 ```typescript
 nrrdTools.draw({
@@ -342,7 +349,7 @@ nrrdTools.draw({
 });
 ```
 
-### 5.4 `enableContrastDragEvents()` — Windowing
+#### 5.4 `enableContrastDragEvents()` — Windowing
 
 Enable Ctrl+drag to adjust window/level (brightness/contrast):
 
@@ -356,11 +363,11 @@ nrrdTools.enableContrastDragEvents((step: number, towards: 'horizental' | 'verti
 
 ---
 
-## 6. Layer & Channel Management
+### 6. Layer & Channel Management
 
 NrrdTools supports **multi-layer** annotation (e.g., tumour, edema, necrosis) and **multi-channel** within each layer (e.g., different anatomical structures painted in different colors).
 
-### 6.1 Active Layer & Channel
+#### 6.1 Active Layer & Channel
 
 ```typescript
 // Switch the active layer (where new strokes go)
@@ -374,7 +381,7 @@ const currentLayer   = nrrdTools.getActiveLayer();   // → 'layer2'
 const currentChannel = nrrdTools.getActiveChannel(); // → 3
 ```
 
-### 6.2 Layer Visibility
+#### 6.2 Layer Visibility
 
 Toggle layers on/off in the composite canvas:
 
@@ -391,7 +398,7 @@ const visibilityMap = nrrdTools.getLayerVisibility();
 // → { layer1: true, layer2: false, layer3: true, layer4: true }
 ```
 
-### Scenario: Eye-button toggle in UI
+#### Scenario: Eye-button toggle in UI
 
 ```typescript
 function onToggleLayerEye(layerId: string) {
@@ -400,7 +407,7 @@ function onToggleLayerEye(layerId: string) {
 }
 ```
 
-### 6.3 Channel Visibility
+#### 6.3 Channel Visibility
 
 Each layer can independently show/hide its channels:
 
@@ -419,7 +426,7 @@ const allChannelVis = nrrdTools.getChannelVisibility();
 // → { layer1: { 1: true, 2: false, 3: true, ... }, layer2: { 1: true, ... }, ... }
 ```
 
-### Scenario: Showing only the selected channel
+#### Scenario: Showing only the selected channel
 
 ```typescript
 function isolateChannel(layerId: string, targetChannel: number, totalChannels = 8) {
@@ -437,7 +444,7 @@ for (let ch = 1; ch <= 8; ch++) {
 }
 ```
 
-### 6.4 Checking if a layer has annotations
+#### 6.4 Checking if a layer has annotations
 
 ```typescript
 if (nrrdTools.hasLayerData('layer2')) {
@@ -450,31 +457,31 @@ if (nrrdTools.hasLayerData('layer2')) {
 
 ---
 
-## 7. Channel Color Customization
+### 7. Channel Color Customization
 
 Each layer has its own independent color map. Changing channel 3's color in `layer1` does **not** affect `layer2`.
 
-### Default Channel Colors
+#### Default Channel Colors
 
 | Channel | Color | Hex |
 |---------|-------|-----|
-| 1 | Green (Tumour) | `#00ff00` |
-| 2 | Red (Edema) | `#ff0000` |
-| 3 | Blue (Necrosis) | `#0000ff` |
-| 4 | Yellow (Enhancement) | `#ffff00` |
-| 5 | Magenta (Vessel) | `#ff00ff` |
-| 6 | Cyan (Additional) | `#00ffff` |
-| 7 | Orange (Auxiliary) | `#ff8000` |
-| 8 | Purple (Extended) | `#8000ff` |
+| 1 | Emerald (Tumour) | `#10b981` |
+| 2 | Rose (Edema) | `#f43f5e` |
+| 3 | Blue (Necrosis) | `#3b82f6` |
+| 4 | Amber (Enhancement) | `#fbbf24` |
+| 5 | Fuchsia (Vessel) | `#d946ef` |
+| 6 | Cyan (Additional) | `#06b6d4` |
+| 7 | Orange (Auxiliary) | `#f97316` |
+| 8 | Violet (Extended) | `#8b5cf6` |
 
-### 7.1 Set a single channel color
+#### 7.1 Set a single channel color
 
 ```typescript
 // RGBAColor: { r, g, b, a } — all values 0-255
 nrrdTools.setChannelColor('layer1', 3, { r: 255, g: 128, b: 0, a: 255 }); // → orange
 ```
 
-### 7.2 Batch-set multiple channel colors (recommended)
+#### 7.2 Batch-set multiple channel colors (recommended)
 
 One `reloadMasksFromVolume()` call instead of N calls — better performance:
 
@@ -486,14 +493,14 @@ nrrdTools.setChannelColors('layer1', {
 });
 ```
 
-### 7.3 Apply the same color to all layers
+#### 7.3 Apply the same color to all layers
 
 ```typescript
 // Paint all layers' channel 1 in the same tumour color
 nrrdTools.setAllLayersChannelColor(1, { r: 0, g: 220, b: 100, a: 255 });
 ```
 
-### 7.4 Read current colors
+#### 7.4 Read current colors
 
 ```typescript
 const rgba = nrrdTools.getChannelColor('layer2', 3);
@@ -506,7 +513,7 @@ const css = nrrdTools.getChannelCssColor('layer2', 3);
 // → "rgba(255,128,0,1.00)"  — suitable for Vue :style binding
 ```
 
-### 7.5 Reset colors
+#### 7.5 Reset colors
 
 ```typescript
 // Reset one channel in one layer
@@ -519,7 +526,7 @@ nrrdTools.resetChannelColors('layer1');
 nrrdTools.resetChannelColors();
 ```
 
-### Scenario: Color picker integration
+#### Scenario: Color picker integration
 
 ```typescript
 // User picks a new color in the UI color picker
@@ -536,7 +543,7 @@ function onColorPicked(hexColor: string) {
 }
 ```
 
-### Scenario: Vue UI reactivity after color change
+#### Scenario: Vue UI reactivity after color change
 
 After calling `setChannelColor()`, the canvas re-renders automatically.
 But Vue computed properties that show the color need a manual nudge:
@@ -561,7 +568,7 @@ refreshColors();
 
 ---
 
-## 8. Undo / Redo
+### 8. Undo / Redo
 
 NrrdTools maintains a per-layer undo stack (max 50 entries). Every completed brush stroke pushes a delta snapshot.
 
@@ -573,7 +580,7 @@ nrrdTools.undo();
 nrrdTools.redo();
 ```
 
-### Scenario: Keyboard shortcut binding
+#### Scenario: Keyboard shortcut binding
 
 ```typescript
 window.addEventListener('keydown', (e) => {
@@ -587,9 +594,9 @@ window.addEventListener('keydown', (e) => {
 
 ---
 
-## 9. Keyboard Shortcuts
+### 9. Keyboard Shortcuts
 
-### Default bindings
+#### Default bindings
 
 | Action | Default Key |
 |--------|-------------|
@@ -601,7 +608,7 @@ window.addEventListener('keydown', (e) => {
 | Sphere mode | `q` |
 | Mouse wheel | Zoom |
 
-### Reading current settings
+#### Reading current settings
 
 ```typescript
 const settings = nrrdTools.getKeyboardSettings();
@@ -616,7 +623,7 @@ console.log(settings);
 // }
 ```
 
-### Customizing bindings
+#### Customizing bindings
 
 ```typescript
 nrrdTools.setKeyboardSettings({
@@ -625,7 +632,7 @@ nrrdTools.setKeyboardSettings({
 });
 ```
 
-### Scenario: Form input focus — suppressing shortcuts
+#### Scenario: Form input focus — suppressing shortcuts
 
 When a user types in an input field, you don't want tool shortcuts firing:
 
@@ -639,7 +646,7 @@ inputElement.addEventListener('blur', () => {
 });
 ```
 
-### Enabling / disabling contrast shortcut independently
+#### Enabling / disabling contrast shortcut independently
 
 ```typescript
 // Disable only the contrast (window/level) keyboard shortcut
@@ -654,9 +661,9 @@ nrrdTools.setContrastShortcutEnabled(true);
 
 ---
 
-## 10. Display & Canvas Control
+### 10. Display & Canvas Control
 
-### Canvas size scaling
+#### Canvas size scaling
 
 Set the base display size multiplier (1–8). Larger values use more GPU memory but give sharper annotations:
 
@@ -664,7 +671,7 @@ Set the base display size multiplier (1–8). Larger values use more GPU memory 
 nrrdTools.setBaseDrawDisplayCanvasesSize(2); // 2× base resolution
 ```
 
-### Reading image metadata
+#### Reading image metadata
 
 ```typescript
 // Voxel dimensions [width, height, depth]
@@ -687,22 +694,22 @@ const maxSlices = nrrdTools.getMaxSliceNum();
 const { currentSliceIndex, contrastIndex } = nrrdTools.getCurrentSlicesNumAndContrastNum();
 ```
 
-### Accessing internal canvases
+#### Accessing internal canvases
 
 ```typescript
 // The topmost interactive canvas (mouse/pen events target here)
 const drawingCanvas = nrrdTools.getDrawingCanvas();
 
-// The container element passed to the constructor
+// The inner main-area container div (dynamically created by NrrdTools, NOT the original container passed to constructor)
 const container = nrrdTools.getContainer();
 
-// Raw NrrdStates (all internal state fields)
+// Raw NrrdState (all internal state fields, grouped by semantic sub-objects)
 const states = nrrdTools.getNrrdToolsSettings();
-console.log(states.layers);     // ["layer1", "layer2", ...]
-console.log(states.dimensions); // [512, 512, 256]
+console.log(states.image.layers);     // ["layer1", "layer2", ...]
+console.log(states.image.dimensions); // [512, 512, 256]
 ```
 
-### Accessing full mask data
+#### Accessing full mask data
 
 ```typescript
 // All MaskVolume data structures
@@ -712,7 +719,7 @@ const maskData = nrrdTools.getMaskData();
 
 ---
 
-## 11. Reading State & Diagnostics
+### 11. Reading State & Diagnostics
 
 ```typescript
 // Full snapshot of current state
@@ -730,7 +737,7 @@ const channelVis = nrrdTools.getChannelVisibility();
 const hasTumour = nrrdTools.hasLayerData('layer1');
 
 // Get current channel color as hex
-const hex = nrrdTools.getChannelHexColor('layer1', 1); // → "#00ff00"
+const hex = nrrdTools.getChannelHexColor('layer1', 1); // → "#10b981"
 
 // Keyboard settings
 const keys = nrrdTools.getKeyboardSettings();
@@ -738,9 +745,9 @@ const keys = nrrdTools.getKeyboardSettings();
 
 ---
 
-## 12. Advanced Scenarios
+### 12. Advanced Scenarios
 
-### Scenario A: Complete multi-layer initialization from scratch
+#### Scenario A: Complete multi-layer initialization from scratch
 
 ```typescript
 async function initAnnotationTool(container: HTMLDivElement, allSlices: any[]) {
@@ -758,7 +765,7 @@ async function initAnnotationTool(container: HTMLDivElement, allSlices: any[]) {
   });
 
   // Load image volume
-  nrrdTools.clear();
+  nrrdTools.reset();
   nrrdTools.setAllSlices(allSlices);
 
   // Register callbacks
@@ -780,7 +787,7 @@ async function initAnnotationTool(container: HTMLDivElement, allSlices: any[]) {
 }
 ```
 
-### Scenario B: Load existing annotations and apply custom color scheme
+#### Scenario B: Load existing annotations and apply custom color scheme
 
 ```typescript
 async function loadAndColorCase(nrrdTools: Copper.NrrdTools, caseId: string) {
@@ -808,12 +815,12 @@ async function loadAndColorCase(nrrdTools: Copper.NrrdTools, caseId: string) {
 }
 ```
 
-### Scenario C: Switching cases — full reset
+#### Scenario C: Switching cases — full reset
 
 ```typescript
 async function switchCase(nrrdTools: Copper.NrrdTools, newCaseData: ICaseData) {
   // Reset annotation volumes
-  nrrdTools.clear();
+  nrrdTools.reset();
 
   // Load new image slices (from Copper's scene loader result)
   nrrdTools.setAllSlices(newCaseData.slices);
@@ -840,7 +847,7 @@ async function switchCase(nrrdTools: Copper.NrrdTools, newCaseData: ICaseData) {
 }
 ```
 
-### Scenario D: Save workflow with dirty-layer detection
+#### Scenario D: Save workflow with dirty-layer detection
 
 ```typescript
 async function onSave(nrrdTools: Copper.NrrdTools, caseId: string) {
@@ -858,7 +865,7 @@ async function onSave(nrrdTools: Copper.NrrdTools, caseId: string) {
 }
 ```
 
-### Scenario E: AI segmentation result — write back to volume
+#### Scenario E: AI segmentation result — write back to volume
 
 After receiving a segmentation result from a backend AI model, write it directly into a layer:
 
@@ -878,7 +885,7 @@ async function applyAIResult(nrrdTools: Copper.NrrdTools, layerId: string) {
 }
 ```
 
-### Scenario F: Dynamic keyboard remap from user settings
+#### Scenario F: Dynamic keyboard remap from user settings
 
 ```typescript
 interface UserPreferences {
@@ -903,7 +910,7 @@ applyUserKeyboardPreferences(nrrdTools, {
 });
 ```
 
-### Scenario G: Read layer colors to build a color legend
+#### Scenario G: Read layer colors to build a color legend
 
 ```typescript
 function buildColorLegend(nrrdTools: Copper.NrrdTools, layerId: string) {
@@ -920,13 +927,13 @@ function buildColorLegend(nrrdTools: Copper.NrrdTools, layerId: string) {
 }
 
 // → [
-//   { channel: 1, cssColor: 'rgba(0,255,0,1.00)', hexColor: '#00ff00', rgba: { r:0, g:255, b:0, a:255 } },
-//   { channel: 2, cssColor: 'rgba(255,0,0,1.00)', hexColor: '#ff0000', ... },
+//   { channel: 1, cssColor: 'rgba(16,185,129,1.00)', hexColor: '#10b981', rgba: { r:16, g:185, b:129, a:255 } },
+//   { channel: 2, cssColor: 'rgba(244,63,94,1.00)',  hexColor: '#f43f5e', rgba: { r:244, g:63, b:94, a:255 } },
 //   ...
 // ]
 ```
 
-### Scenario H: Clearing annotations
+#### Scenario H: Clearing annotations
 
 There are different levels of clearing data depending on the use case:
 
@@ -948,11 +955,11 @@ nrrdTools.clearActiveSlice();
 
 ---
 
-## 13. Vue 3 Integration Pattern
+### 13. Vue 3 Integration Pattern
 
 The recommended pattern in Vue 3 is to distribute the `NrrdTools` instance via a Vue event emitter after NRRD loading completes, so any descendant component can access it.
 
-### LeftPanel (creator)
+#### LeftPanel (creator)
 
 ```vue
 <script setup lang="ts">
@@ -969,7 +976,7 @@ onMounted(() => {
 
 // After all NRRD files are loaded by the Copper scene:
 function onAllImagesLoaded(allSlices: any[]) {
-  nrrdTools!.clear();
+  nrrdTools!.reset();
   nrrdTools!.setAllSlices(allSlices);
 
   nrrdTools!.drag({ getSliceNum: (idx) => emit('sliceChanged', idx) });
@@ -990,7 +997,7 @@ function onAllImagesLoaded(allSlices: any[]) {
 </script>
 ```
 
-### Annotation Control Panel (consumer)
+#### Annotation Control Panel (consumer)
 
 ```vue
 <script setup lang="ts">
@@ -1031,7 +1038,7 @@ function onChannelColorPicked(hex: string) {
 
 ---
 
-## 14. Type Reference
+### 14. Type Reference
 
 ```typescript
 // Color type used by all channel color APIs
@@ -1079,8 +1086,9 @@ interface IKeyBoardSettings {
   draw: string;
   undo: string;
   redo: string;
-  contrast: string | string[];
+  contrast: string[];           // always an array, e.g. ["Control", "Meta"]
   crosshair: string;
+  sphere: string;
   mouseWheel: 'Scroll:Zoom' | 'Scroll:Slice';
 }
 
@@ -1092,7 +1100,7 @@ interface ICommXYZ {
 }
 ```
 
-### Common type aliases
+#### Common type aliases
 
 ```typescript
 type LayerId     = 'layer1' | 'layer2' | 'layer3' | 'layer4'; // or any string
@@ -1101,7 +1109,7 @@ type ChannelValue = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 ---
 
-## API Summary
+### API Summary
 
 | Category | Method | Description |
 |----------|--------|-------------|
@@ -1124,6 +1132,8 @@ type ChannelValue = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 | | `isLayerVisible(id)` | Query layer visibility |
 | | `getLayerVisibility()` | All layer visibility map |
 | | `hasLayerData(id)` | Check if layer has non-zero voxels |
+| **Sphere** | `setActiveSphereType(type)` | Set active sphere type (`'tumour'`/`'skin'`/`'nipple'`/`'ribcage'`), updates brush color |
+| | `getActiveSphereType()` | Read current sphere type |
 | **Channel** | `setActiveChannel(ch)` | Switch drawing target channel |
 | | `getActiveChannel()` | Read current channel |
 | | `setChannelVisible(id, ch, bool)` | Toggle channel visibility in a layer |
@@ -1136,6 +1146,22 @@ type ChannelValue = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 | | `getChannelHexColor(id, ch)` | Read Hex string |
 | | `getChannelCssColor(id, ch)` | Read CSS rgba() string |
 | | `resetChannelColors(id?, ch?)` | Reset to defaults |
+| **Tool Mode** | `setMode(mode)` | Switch tool mode: `"pencil"` / `"brush"` / `"eraser"` / `"sphere"` / `"calculator"` |
+| | `getMode()` | Read current tool mode |
+| | `isCalculatorActive()` | Check if calculator (distance) mode is active |
+| **Drawing** | `setOpacity(value)` | Set mask overlay opacity [0.1, 1] |
+| | `getOpacity()` | Read current opacity |
+| | `setBrushSize(size)` | Set brush/eraser size [5, 50], updates cursor |
+| | `getBrushSize()` | Read current brush size |
+| | `setPencilColor(hex)` | Set pencil stroke color (hex string) |
+| | `getPencilColor()` | Read current pencil color |
+| **Contrast** | `setWindowHigh(value)` | Set window high (image contrast), call `finishWindowAdjustment()` after drag |
+| | `setWindowLow(value)` | Set window low (image center) |
+| | `finishWindowAdjustment()` | Repaint all contrast slices after drag ends |
+| | `getSliderMeta(key)` | Get slider min/max/step/value for UI config (`"globalAlpha"`, `"brushAndEraserSize"`, etc.) |
+| **Actions** | `executeAction(action)` | Run named action: `"undo"`, `"redo"`, `"clearActiveSliceMask"`, `"clearActiveLayerMask"`, `"resetZoom"`, `"downloadCurrentMask"` |
+| **Navigation** | `setSliceOrientation(axis)` | Switch viewing axis `"x"` / `"y"` / `"z"` |
+| | `setCalculateDistanceSphere(x, y, slice, type)` | Programmatically place a distance-calculator sphere |
 | **History** | `undo()` | Undo last stroke |
 | | `redo()` | Redo last undone stroke |
 | **Keyboard** | `setKeyboardSettings(partial)` | Remap shortcuts |
@@ -1150,6 +1176,6 @@ type ChannelValue = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 | | `getMaxSliceNum()` | Max slice index per axis |
 | | `getCurrentSlicesNumAndContrastNum()` | Current slice & contrast index |
 | | `getMaskData()` | Raw `IMaskData` object |
-| | `getNrrdToolsSettings()` | Full `INrrdStates` snapshot |
+| | `getNrrdToolsSettings()` | Full `NrrdState` snapshot (grouped sub-objects: image, view, interaction, sphere, flags) |
 | | `getContainer()` | Host `HTMLElement` |
 | | `getDrawingCanvas()` | Top-layer `HTMLCanvasElement` |

@@ -1,7 +1,7 @@
 # State Management Refactor — Task List
 
 > **Plan:** [gui_state_api_refactor_plan.md](gui_state_api_refactor_plan.md)
-> **Status:** Phase 5 Complete
+> **Status:** All Phases Complete (including Final Cleanup)
 > **Estimated Duration:** 3-4 weeks (5 phases)
 
 ---
@@ -437,34 +437,35 @@ this.ctx.gui.drawing.brushColor
 - [x] `yarn build` — 零新增错误 (built in 18.51s)
 - [x] `vue-tsc --noEmit` — 无 segmentation 相关新 TS 错误
 - [x] grep 验证: 所有 flat 引用已迁移为 grouped 访问
-- [ ] 手动测试: 画图 (pencil, brush, eraser) — 三个轴
-- [ ] 手动测试: 平移 (右键拖动)
-- [ ] 手动测试: 缩放 (滚轮 / slider)
-- [ ] 手动测试: 切片导航 (拖动, 滚轮)
-- [ ] 手动测试: Sphere 放置 (4 种类型)
-- [ ] 手动测试: Calculator 模式
-- [ ] 手动测试: Crosshair
-- [ ] 手动测试: 对比度调整 (slider + drag)
-- [ ] 手动测试: Undo/redo
-- [ ] 手动测试: dat.gui 面板正常工作
-- [ ] 手动测试: Layer/channel 切换
-- [ ] 手动测试: Clear slice / clear all
+- [x] 手动测试: 画图 (pencil, brush, eraser) — 三个轴
+- [x] 手动测试: 平移 (右键拖动)
+- [x] 手动测试: 缩放 (滚轮 / slider)
+- [x] 手动测试: 切片导航 (拖动, 滚轮)
+- [x] 手动测试: Sphere 放置 (4 种类型)
+- [x] 手动测试: Calculator 模式
+- [x] 手动测试: Crosshair
+- [x] 手动测试: 对比度调整 (slider + drag)
+- [x] 手动测试: Undo/redo
+- [x] 手动测试: dat.gui 面板正常工作
+- [x] 手动测试: Layer/channel 切换
+- [x] 手动测试: Clear slice / clear all
 
 ---
 
 ## Final Cleanup
 
-### Task F.1: 命名修正 (可选, 低优先级)
-- [ ] `sizeFoctor` → `sizeFactor` (typo)
-- [ ] `Mouse_Over_x/y` → `mouseOverX/Y`
-- [ ] `Is_Draw` → `isDrawing`
-- [ ] `Eraser` → `eraser` (大小写一致性)
-- [ ] 每个重命名后编译通过 + grep 验证
+### Task F.1: 命名修正 ✅
+- [x] `sizeFoctor` → `sizeFactor` (typo) — 5 files, ~24 refs
+- [x] `Mouse_Over_x/y` → `mouseOverX/Y` — 3 files (coreType.ts, NrrdState.ts, DrawToolCore.ts), 16 refs
+- [x] `Is_Draw` → `isDrawing` — 6 files (coreType.ts, CommToolsData.ts, DrawToolCore.ts, NrrdTools.ts, DrawingTool.ts, ZoomTool.ts), 12 refs
+- [x] `Eraser` → `eraser` (大小写一致性) — 7 files (coreType.ts, GuiState.ts, gui.ts, DrawToolCore.ts, NrrdTools.ts, DrawingTool.ts, OperationCtl.vue), ~20 refs
+- [x] 每个重命名后编译通过 + grep 验证 — `yarn build` ✅, `vue-tsc` 无新错误
 
-### Task F.2: 文档更新
-- [ ] 更新 `CLAUDE.md` 中的架构说明
-- [ ] 更新 `overall_plan.md` 状态为 Completed
-- [ ] 在 plan/ 下记录最终的 state 架构
+### Task F.2: 文档更新 ✅
+- [x] 更新任务文档状态为 All Phases Complete
+- [x] 更新 `plan/docs/segmentation-module.md` — Section 3 States 重写为 NrrdState/GuiState 分组架构; ToolContext 类型更新; `isDrawing`/`gui_states.drawing.globalAlpha` 修正
+- [x] 更新 `plan/docs/nrrdtools-usage-guide.md` — `gui_states.mode.activeSphereType`/`gui_states.mode.sphere`; `getNrrdToolsSettings()` 返回值描述; API Summary 表
+- [x] 更新 `plan/docs/frontend-layer-channel.md` — 所有 `gui_states.xxx` 引用更新为分组访问 (`layerChannel.layer`, `layerChannel.activeChannel`, `layerChannel.*Visibility`, `drawing.fillColor/brushColor`)
 
 ---
 

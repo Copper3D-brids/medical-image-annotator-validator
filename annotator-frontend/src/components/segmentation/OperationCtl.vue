@@ -96,7 +96,7 @@ let nrrdTools: NrrdTools;
 const commFuncRadioValues = ref([
   { label: "Pencil", value: "pencil", color: "success" },
   { label: "Brush", value: "brush", color: "info" },
-  { label: "Eraser", value: "Eraser", color: "error" },
+  { label: "Eraser", value: "eraser", color: "error" },
 ]);
 
 const commSliderRadioValues = ref([
@@ -193,7 +193,7 @@ const emitterOnNrrdTools = (tool: NrrdTools) => {
 const MODE_MAP: Record<string, ToolMode> = {
   pencil: "pencil",
   brush: "brush",
-  Eraser: "eraser",
+  eraser: "eraser",
   sphere: "sphere",
   calculator: "calculator",
 };

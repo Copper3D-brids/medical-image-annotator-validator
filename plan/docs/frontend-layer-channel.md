@@ -2,6 +2,8 @@
 
 > Frontend 层面 Layer/Channel 的调用机制和数据流
 
+> ⚠️ **注意**：文档中的行号引用（如 `LeftPanelCore.vue:357`、`LayerChannelSelector.vue:184` 等）均来自历史版本，经过多轮重构后已过时，仅作结构参考，请以实际代码为准。
+
 ## 1. 整体架构
 
 ```
@@ -44,7 +46,7 @@ emitter!.emit("Core:NrrdTools", nrrdTools);
 ```
 
 在所有图片加载完毕后（`filesCount === currentCaseContrastUrls.length`），执行初始化流程：
-- [L357-358](annotator-frontend/src/components/viewer/LeftPanelCore.vue#L357-L358): 清空并加载切片 `nrrdTools.clear()` + `nrrdTools.setAllSlices(allSlices)`
+- 清空并加载切片 `nrrdTools.reset()` + `nrrdTools.setAllSlices(allSlices)`
 - [L362](annotator-frontend/src/components/viewer/LeftPanelCore.vue#L362): 启用拖拽 `nrrdTools.drag({ getSliceNum })`
 - [L363](annotator-frontend/src/components/viewer/LeftPanelCore.vue#L363): 启用绘画 `nrrdTools.draw({ getMaskData, onClearLayerVolume, ... })`
 - [L364](annotator-frontend/src/components/viewer/LeftPanelCore.vue#L364): 设置 GUI `nrrdTools.setupGUI(gui)`
@@ -53,7 +55,9 @@ emitter!.emit("Core:NrrdTools", nrrdTools);
 
 ### 2.3 Callback 绑定
 
-`getMaskData` callback 在 [LeftPanelCore.vue:307-326](annotator-frontend/src/components/viewer/LeftPanelCore.vue#L307-L326) 定义，通过 `nrrdTools.draw()` 绑定到 `nrrd_states.getMask`：
+`getMaskData` callback 在 LeftPanelCore.vue 中定义，通过 `nrrdTools.draw()` 注册，内部映射到 `annotationCallbacks.onMaskChanged`（DrawToolCore.ts）：
+
+> ⚠️ 原文档说"绑定到 `nrrd_states.getMask`"已不正确。回调现在存储在 `CommToolsData.annotationCallbacks.onMaskChanged`，`nrrd_states` 上没有 `getMask` 字段。
 
 ```ts
 const getMaskData = (
@@ -187,7 +191,7 @@ function setActiveLayer(layerId: Copper.LayerId): void {
 ```
 
 NrrdTools 内部:
-- 设置 `gui_states.layer = layerId`
+- 设置 `gui_states.layerChannel.layer = layerId`
 - 通过 `syncBrushColor()` 从新 layer 的 MaskVolume 动态获取当前 channel 的颜色，更新 `fillColor` / `brushColor`（支持 per-layer 自定义颜色）
 
 #### `setActiveChannel(channel)` — [L110-113](annotator-frontend/src/composables/left-panel/useLayerChannel.ts#L110-L113)
@@ -200,7 +204,7 @@ function setActiveChannel(channel: Copper.ChannelValue): void {
 ```
 
 NrrdTools 内部:
-- 设置 `gui_states.activeChannel = channel`
+- 设置 `gui_states.layerChannel.activeChannel = channel`
 - 通过 `syncBrushColor()` 从当前 layer 的 MaskVolume 动态获取颜色，更新 `fillColor` / `brushColor`（支持自定义颜色）
 
 #### `toggleLayerVisibility(layerId)` — [L118-122](annotator-frontend/src/composables/left-panel/useLayerChannel.ts#L118-L122)
@@ -214,7 +218,7 @@ function toggleLayerVisibility(layerId: Copper.LayerId): void {
 ```
 
 NrrdTools 内部 ([NrrdTools.ts:207-210](annotator-frontend/src/ts/Utils/segmentation/NrrdTools.ts#L207-L210)):
-- 设置 `gui_states.layerVisibility[layerId] = visible`
+- 设置 `gui_states.layerChannel.layerVisibility[layerId] = visible`
 - 调用 `reloadMasksFromVolume()` → 重新渲染所有 Layer
 
 #### `toggleChannelVisibility(layerId, channel)`
@@ -228,7 +232,7 @@ function toggleChannelVisibility(layerId: Copper.LayerId, channel: Copper.Channe
 ```
 
 NrrdTools 内部 ([NrrdTools.ts:222-227](annotator-frontend/src/ts/Utils/segmentation/NrrdTools.ts#L222-L227)):
-- 设置 `gui_states.channelVisibility[layerId][channel] = visible`
+- 设置 `gui_states.layerChannel.channelVisibility[layerId][channel] = visible`
 - 调用 `reloadMasksFromVolume()` → 重新渲染所有 Layer
 
 #### `setLayerDisabled(layerId, disabled)` / `setChannelDisabled(layerId, channel, disabled)`
@@ -277,7 +281,7 @@ LayerChannelSelector.vue::onToggleLayerVisibility(layerId)     [L196-198]
 useLayerChannel::toggleLayerVisibility(layerId)                [L118-122]
     ├─ layerVisibility.value[layerId] = !current               ← Vue 响应式更新 → UI 重渲染
     └─ nrrdTools.setLayerVisible(layerId, newValue)            [NrrdTools.ts:207-210]
-        ├─ gui_states.layerVisibility[layerId] = visible       ← 引擎内部状态
+        ├─ gui_states.layerChannel.layerVisibility[layerId] = visible       ← 引擎内部状态
         └─ reloadMasksFromVolume()                             [NrrdTools.ts:1266-1297]
             ├─ FOR EACH layer:
             │   renderSliceToCanvas(layerId, axis, sliceIndex, buffer, ctx, w, h)
@@ -300,15 +304,15 @@ LayerChannelSelector.vue::onToggleChannelVisibility(channel)   [L200-202]
 useLayerChannel::toggleChannelVisibility(activeLayer, channel) [L127-131]
     ├─ channelVisibility.value[layerId][channel] = !current    ← Vue 响应式更新 → UI 重渲染
     └─ nrrdTools.setChannelVisible(layerId, channel, newValue) [NrrdTools.ts:222-227]
-        ├─ gui_states.channelVisibility[layerId][channel] = visible
+        ├─ gui_states.layerChannel.channelVisibility[layerId][channel] = visible
         └─ reloadMasksFromVolume()                             [NrrdTools.ts:1266-1297]
             └─ renderSliceToCanvas(layerId, ...)
-                └─ channelVis = gui_states.channelVisibility[layer]   [CommToolsData.ts:599]
+                └─ channelVis = gui_states.layerChannel.channelVisibility[layer]   [CommToolsData.ts:599]
                 └─ volume.renderLabelSliceInto(..., channelVis, ...)   [CommToolsData.ts:602]
                     └─ 逐像素渲染 [MaskVolume.ts:742-769]:
                         ├─ label === 0           → 透明
                         ├─ !channelVis[label]    → 透明 (该 channel 被隐藏) [L753-757]
-                        └─ 否则                  → 从 MASK_CHANNEL_COLORS 取颜色渲染 [L758-764]
+                        └─ 否则                  → 从 volume.colorMap 取颜色渲染（Phase B：per-layer 自定义颜色）
 ```
 
 ### 5.3 选择活跃 Layer
@@ -322,11 +326,11 @@ LayerChannelSelector.vue::onSelectLayer(layerId)               [L184-189]
 useLayerChannel::setActiveLayer(layerId)                       [L102-105]
     ├─ activeLayer.value = layerId                             ← Vue 响应式更新
     └─ nrrdTools.setActiveLayer(layerId)
-        ├─ gui_states.layer = layerId
+        ├─ gui_states.layerChannel.layer = layerId
         └─ syncBrushColor()                                    ← 从 volume 动态获取颜色
             ├─ volume.getChannelColor(activeChannel) → rgbaToHex()
-            ├─ gui_states.fillColor = hex
-            └─ gui_states.brushColor = hex
+            ├─ gui_states.drawing.fillColor = hex
+            └─ gui_states.drawing.brushColor = hex
 ```
 
 ### 5.4 选择活跃 Channel
@@ -340,11 +344,11 @@ LayerChannelSelector.vue::onSelectChannel(channel)             [L191-194]
 useLayerChannel::setActiveChannel(channel)                     [L110-113]
     ├─ activeChannel.value = channel                           ← Vue 响应式更新
     └─ nrrdTools.setActiveChannel(channel)
-        ├─ gui_states.activeChannel = channel
+        ├─ gui_states.layerChannel.activeChannel = channel
         └─ syncBrushColor()                                    ← 从 volume 动态获取颜色
             ├─ volume.getChannelColor(channel) → rgbaToHex()
-            ├─ gui_states.fillColor = hex
-            └─ gui_states.brushColor = hex
+            ├─ gui_states.drawing.fillColor = hex
+            └─ gui_states.drawing.brushColor = hex
 ```
 
 ---
@@ -357,12 +361,12 @@ useLayerChannel::setActiveChannel(channel)                     [L110-113]
       └─ new Copper.NrrdTools(container)                       [L202]
 
 2. NRRD 文件加载完毕 (filesCount === urls.length)              [L350-387]
-   ├─ nrrdTools.clear()                                        [L357]
-   ├─ nrrdTools.setAllSlices(allSlices)                        [L358]
-   │   └─ 初始化 MaskVolume(vw, vh, vd, 1)                    [NrrdTools.ts:474-481]
-   ├─ nrrdTools.drag({ getSliceNum })                          [L362]
-   ├─ nrrdTools.draw({ getMaskData, onClearLayerVolume, ... }) [L363]
-   │   └─ 绑定 nrrd_states.getMask = getMaskData
+   ├─ nrrdTools.reset()
+   ├─ nrrdTools.setAllSlices(allSlices)
+   │   └─ 初始化 MaskVolume(vw, vh, vd, 1)
+   ├─ nrrdTools.drag({ getSliceNum })
+   ├─ nrrdTools.draw({ getMaskData, onClearLayerVolume, ... })
+   │   └─ 绑定 annotationCallbacks.onMaskChanged = getMaskData
    ├─ nrrdTools.setupGUI(gui)                                  [L364]
    ├─ scene.addPreRenderCallbackFunction(nrrdTools.start)      [L367]
    └─ emitter.emit("Core:NrrdTools", nrrdTools)                [L368]
