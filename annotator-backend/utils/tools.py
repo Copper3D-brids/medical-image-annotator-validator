@@ -279,10 +279,12 @@ def create_nifti_file(file_path, dimensions, spacing, origin):
     width, height, depth = dimensions
     empty_data = np.zeros((width, height, depth), dtype=np.uint8)
 
-    # Create affine matrix using nibabel's standard approach
-    # Build diagonal matrix from spacing and add origin as translation
-    affine = np.diag([spacing[0], spacing[1], spacing[2], 1.0])
-    affine[:3, 3] = origin
+    # Create affine matrix with RAI→LPS conversion.
+    # NRRD uses RAI (Right-Anterior-Inferior) space [-172.9, -150.6, -60.3],
+    # NIfTI uses LPS (Left-Posterior-Superior) [172.9, 150.6, -60.3].
+    # The first two axes must be negated.
+    affine = np.diag([-spacing[0], -spacing[1], spacing[2], 1.0])
+    affine[:3, 3] = [-origin[0], -origin[1], origin[2]]
 
     # Create NIfTI-1 image (most compatible format)
     img = nib.Nifti1Image(empty_data, affine)
@@ -313,9 +315,9 @@ def write_nifti_file(file_path, data, spacing, origin):
     # Create parent directory if it doesn't exist
     file_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Create affine matrix using nibabel's standard approach
-    affine = np.diag([spacing[0], spacing[1], spacing[2], 1.0])
-    affine[:3, 3] = origin
+    # Create affine matrix with RAI→LPS conversion (NRRD→NIfTI).
+    affine = np.diag([-spacing[0], -spacing[1], spacing[2], 1.0])
+    affine[:3, 3] = [-origin[0], -origin[1], origin[2]]
 
     # Create NIfTI-1 image
     img = nib.Nifti1Image(data.astype(np.uint8), affine)
@@ -382,7 +384,6 @@ def update_nifti_slice(file_path, slice_data, slice_index, axis, width, height):
     :return: File size in bytes
     """
     file_path = Path(file_path)
-
     if not file_path.exists():
         raise FileNotFoundError(f"NIfTI file not found: {file_path}")
 

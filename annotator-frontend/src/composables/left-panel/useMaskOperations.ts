@@ -113,12 +113,14 @@ export function useMaskOperations(deps: IMaskOperationsDeps) {
 
         if (!caseDetail) return;
 
+        console.log(nrrdTools.value!.getSpaceOrigin());
+        
         // Phase 4 Task 4.2: Try loading NIfTI files first
         const hasLayer1 = Number(caseDetail.output.mask_layer1_nii_size || 0) > 0;
         const hasLayer2 = Number(caseDetail.output.mask_layer2_nii_size || 0) > 0;
         const hasLayer3 = Number(caseDetail.output.mask_layer3_nii_size || 0) > 0;
         const hasLayer4 = Number(caseDetail.output.mask_layer4_nii_size || 0) > 0;
-
+        
         if (hasLayer1 || hasLayer2 || hasLayer3 || hasLayer4) {
             // Load NIfTI masks using the new Phase 0 API
             switchAnimationStatus(loadingContainer.value!, progress.value!, "flex", "Loading NIfTI mask layers...");

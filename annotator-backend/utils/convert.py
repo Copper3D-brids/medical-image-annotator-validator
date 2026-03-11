@@ -67,9 +67,12 @@ def convert_nii_to_obj(case_output: CaseOutput, layer_id: str = "layer1"):
         data = img.get_fdata().astype(np.uint8)
         affine = img.affine
 
-        # Extract spacing and origin from affine matrix
+        # Extract spacing and origin from affine matrix.
+        # NIfTI stores origin in LPS [172.9, 150.6, -60.3], but Copper3D
+        # renders NRRD in RAI [-172.9, -150.6, -60.3], so convert
+        # LPS→RAI by negating X and Y.
         spacing = [abs(affine[0, 0]), abs(affine[1, 1]), abs(affine[2, 2])]
-        origin = [affine[0, 3], affine[1, 3], affine[2, 3]]
+        origin = [-affine[0, 3], -affine[1, 3], affine[2, 3]]
 
         # Create binary mask: any non-zero value (any channel > 0) becomes 255
         # This handles multiple channels (0-8) by treating any value > 0 as mask
@@ -191,9 +194,10 @@ def convert_nii_to_gltf(case_output: CaseOutput, layer_id: str = "layer1", glb_p
         data = img.get_fdata().astype(np.uint8)
         affine = img.affine
 
-        # Extract spacing and origin from affine matrix
+        # Extract spacing and origin from affine matrix.
+        # NIfTI stores origin in LPS, convert to RAI for Copper3D rendering.
         spacing = np.array([abs(affine[0, 0]), abs(affine[1, 1]), abs(affine[2, 2])])
-        origin = np.array([affine[0, 3], affine[1, 3], affine[2, 3]])
+        origin = np.array([-affine[0, 3], -affine[1, 3], affine[2, 3]])
 
         print(f"Converting {layer_id} to GLTF with multi-channel colors")
         print(f"Volume shape: {data.shape}, spacing: {spacing}, origin: {origin}")
@@ -433,8 +437,11 @@ def convert_to_obj(patient_id):
     arr = img.get_fdata()
     try:
         verts, faces, normals, values = marching_cubes(arr)
-        # voxel grid coordinates to world coordinates: verts * voxel_size + origin
-        verts = verts * spacing + img.affine[0:3, -1]
+        # voxel grid coordinates to world coordinates
+        # NIfTI LPS origin → RAI for Copper3D rendering: negate X, Y
+        affine = img.affine
+        rai_origin = np.array([-affine[0, 3], -affine[1, 3], affine[2, 3]])
+        verts = verts * spacing + rai_origin
         # without spacing
         # verts = verts + img.affine[0:3, -1]
 

@@ -60,6 +60,7 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
 
     # 1.1 Validate Minio public path
     minio_public_path = request.system.minio.public_path
+    print(minio_public_path)
     minio_service.validate_public_path(minio_public_path)
 
     datasets = request.assay_info.datasets
@@ -183,7 +184,7 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                     if "json" in output_type and not filename.endswith(".json"):
                         filename += ".json"
                     elif "nii" in output_type and not filename.endswith(".nii.gz") and not filename.endswith(".nii"):
-                        filename += ".nii"  # Common in medical imaging, but let's stick to simple .nii if specified or no ext
+                        filename += ".nii.gz"  # Common in medical imaging, but let's stick to simple .nii if specified or no ext
                     elif "obj" in output_type and not filename.endswith(".obj"):
                         filename += ".obj"
                     elif "glb" in output_type and not filename.endswith(".glb"):

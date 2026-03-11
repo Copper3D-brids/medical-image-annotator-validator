@@ -66,6 +66,7 @@ class MinIOService:
                 raise ValueError(f"Dataset '{ds_name}' subjects.xlsx is missing 'subject id' column.")
             
             existing_subjects = set(subjects_df[subject_col].astype(str).values)
+            print(existing_subjects)
             for cohort in cohorts:
                 if cohort not in existing_subjects:
                     raise ValueError(f"Cohort '{cohort}' not found in dataset '{ds_name}'.")

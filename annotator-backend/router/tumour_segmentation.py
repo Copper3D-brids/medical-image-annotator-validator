@@ -586,8 +586,10 @@ async def init_mask_layers(request: model.MaskInitRequest, db: Session = Depends
     else:
         origin = [0.0, 0.0, 0.0]
     
-    affine = np.diag([spacing[0], spacing[1], spacing[2], 1.0])
-    affine[:3, 3] = origin
+    # RAI→LPS conversion: NRRD uses RAI [-172.9, -150.6, -60.3],
+    # NIfTI uses LPS [172.9, 150.6, -60.3]. Negate X and Y.
+    affine = np.diag([-spacing[0], -spacing[1], spacing[2], 1.0])
+    affine[:3, 3] = [-origin[0], -origin[1], origin[2]]
     
     # Create empty volume
     empty_data = np.zeros((width, height, depth), dtype=np.uint8)
