@@ -31,3 +31,5 @@ test
 .env
 
 src/assets/tool_config.json
+
+.vite
