@@ -21,7 +21,7 @@
 
       <div class="mb-6">
         <!-- Navigation -->
-        <p class="text-subtitle-2 font-weight-bold text-teal mb-1">Navigation</p>
+        <p class="text-subtitle-1 font-weight-bold text-orange mb-1">Navigation</p>
 
         <a href="#" class="text-red-accent-2 text-decoration-none">Full Panel View: </a>
         <p class="ml-9 mb-1">Double-click the panel.</p>
@@ -35,8 +35,10 @@
         <a href="#" class="text-red-accent-2 text-decoration-none">Switch Slice: </a>
         <p class="ml-9 mb-1">Left-click + drag (in idle mode), or scroll wheel (in Scroll:Slice mode).</p>
 
+        <v-progress-linear></v-progress-linear>
+
         <!-- Drawing Tools -->
-        <p class="text-subtitle-2 font-weight-bold text-teal mt-4 mb-1">Drawing Tools</p>
+        <p class="text-subtitle-1 font-weight-bold text-orange mt-4 mb-1">Drawing Tools</p>
 
         <a href="#" class="text-red-accent-2 text-decoration-none">Pencil / Brush / Eraser: </a>
         <p class="ml-9 mb-1">Hold <span class="text-teal font-weight-bold">Shift</span>, then left-click + drag to draw/erase.</p>
@@ -53,26 +55,25 @@
         <a href="#" class="text-red-accent-2 text-decoration-none">Smoothing: Gaussian: </a>
         <p class="ml-9 mb-1">Click the button to smooth the active channel's mask edges. Adjust sigma via the "Smooth Sigma" slider (0.5–5.0). Fully undoable with <span class="text-teal font-weight-bold">Ctrl+Z</span>.</p>
 
-        <!-- Undo / Redo -->
-        <p class="text-subtitle-2 font-weight-bold text-teal mt-4 mb-1">Undo / Redo</p>
-
-        <a href="#" class="text-red-accent-2 text-decoration-none">Undo: </a>
-        <p class="ml-9 mb-1"><span class="text-teal font-weight-bold">Ctrl+Z</span> (Windows) / <span class="text-teal font-weight-bold">Cmd+Z</span> (Mac), or click the Undo button.</p>
-
-        <a href="#" class="text-red-accent-2 text-decoration-none">Redo: </a>
-        <p class="ml-9 mb-1"><span class="text-teal font-weight-bold">Ctrl+Y</span> or <span class="text-teal font-weight-bold">Ctrl+Shift+Z</span> (Windows) / <span class="text-teal font-weight-bold">Cmd+Shift+Z</span> (Mac).</p>
+        <v-progress-linear></v-progress-linear>
 
         <!-- Keyboard Shortcuts -->
-        <p class="text-subtitle-2 font-weight-bold text-teal mt-4 mb-1">Keyboard Shortcuts</p>
+        <p class="text-subtitle-1 font-weight-bold text-orange mt-4 mb-1">Keyboard Shortcuts</p>
 
         <a href="#" class="text-red-accent-2 text-decoration-none">Crosshair: </a>
-        <p class="ml-9 mb-1">Press <span class="text-teal font-weight-bold">C</span> to toggle, then left-click to position.</p>
+        <p class="ml-9 mb-1">Press <span class="text-teal font-weight-bold">s</span> to toggle, then left-click to position.</p>
 
         <a href="#" class="text-red-accent-2 text-decoration-none">Contrast Mode: </a>
         <p class="ml-9 mb-1">Press <span class="text-teal font-weight-bold">Ctrl</span> to toggle, then drag horizontally (WindowHigh) / vertically (WindowCenter).</p>
 
         <a href="#" class="text-red-accent-2 text-decoration-none">Scroll:Zoom / Scroll:Slice: </a>
         <p class="ml-9 mb-1"><span class="text-teal font-weight-bold">Ctrl+1</span> = Scroll:Zoom, <span class="text-teal font-weight-bold">Ctrl+2</span> = Scroll:Slice.</p>
+        
+        <a href="#" class="text-red-accent-2 text-decoration-none">Undo: </a>
+        <p class="ml-9 mb-1"><span class="text-teal font-weight-bold">Ctrl+Z</span> (Windows) / <span class="text-teal font-weight-bold">Cmd+Z</span> (Mac), or click the Undo button.</p>
+
+        <a href="#" class="text-red-accent-2 text-decoration-none">Redo: </a>
+        <p class="ml-9 mb-1"><span class="text-teal font-weight-bold">Ctrl+Y</span> or <span class="text-teal font-weight-bold">Ctrl+Shift+Z</span> (Windows) / <span class="text-teal font-weight-bold">Cmd+Shift+Z</span> (Mac).</p>
       </div>
 
       
