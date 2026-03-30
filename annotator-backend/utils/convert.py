@@ -145,7 +145,7 @@ def convert_nii_to_obj(case_output: CaseOutput, layer_id: str = "layer1"):
         print(traceback.format_exc())
 
 
-def convert_nii_to_gltf(case_output: CaseOutput, layer_id: str = "layer1", glb_path: str = None):
+def convert_nii_to_gltf(case_output: CaseOutput, layer_id: str = None, glb_path: str = None, nii_path: str = None):
     """
     Convert NIfTI mask file to GLTF 3D mesh file with channel-specific colors.
 
@@ -154,8 +154,9 @@ def convert_nii_to_gltf(case_output: CaseOutput, layer_id: str = "layer1", glb_p
     segmentation data with distinct colors for each label.
 
     :param case_output: CaseOutput database model instance
-    :param layer_id: Layer to convert ('layer1', 'layer2', or 'layer3')
+    :param layer_id: Layer to convert (legacy: 'layer1', 'layer2', 'layer3'). Ignored if nii_path is provided.
     :param glb_path: Optional custom output path for GLTF file
+    :param nii_path: Direct path to the NIfTI file (overrides layer_id lookup)
     :return: Path to the generated GLTF file, or None on error
     """
     if not TRIMESH_AVAILABLE:
@@ -165,7 +166,7 @@ def convert_nii_to_gltf(case_output: CaseOutput, layer_id: str = "layer1", glb_p
 
     # Determine output path - use .glb extension for single binary file
     if glb_path is None:
-        # Default: use mask_obj_path but change extension to .glb (binary GLTF)
+        # Default: use mask_glb_path from case_output
         print(case_output.mask_glb_path)
         glb_path = Path(case_output.mask_glb_path)
         dest = glb_path.with_suffix('.glb')
@@ -175,17 +176,23 @@ def convert_nii_to_gltf(case_output: CaseOutput, layer_id: str = "layer1", glb_p
         if dest.suffix.lower() not in ['.glb', '.gltf']:
             dest = dest.with_suffix('.glb')
 
-    # Get the NIfTI path for the specified layer
-    nii_path_attr = f"mask_{layer_id}_nii_path"
-    nii_path = getattr(case_output, nii_path_attr)
+    # Get the NIfTI path: direct path takes precedence over layer_id lookup
+    if nii_path is None:
+        if layer_id is not None:
+            # Legacy layer-based lookup
+            nii_path_attr = f"mask_{layer_id}_nii_path"
+            nii_path = getattr(case_output, nii_path_attr, None)
+        else:
+            # Default: use clinician_validated_nii_path
+            nii_path = getattr(case_output, 'clinician_validated_nii_path', None)
 
     if not nii_path:
-        print(f"Error: {layer_id} path not configured in database")
+        print(f"Error: NIfTI path not configured")
         return None
 
     nii_file = Path(nii_path)
     if not nii_file.exists():
-        print(f"Error: {layer_id} NIfTI file not found: {nii_path}")
+        print(f"Error: NIfTI file not found: {nii_path}")
         return None
 
     try:
