@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 import json
 import time
-from fastapi import Query, BackgroundTasks, WebSocket, HTTPException, Depends
+from fastapi import Query, BackgroundTasks, WebSocket, HTTPException, Depends, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from utils import tools
 from utils.ws_manager import manager
@@ -122,7 +122,7 @@ async def download_sds(assay_uuid: str = Query(...), db: Session = Depends(get_d
 
 
 @router.post('/api/cases')
-async def get_cases_infos(auth: UserAuth, db: Session = Depends(get_db)):
+async def get_cases_infos(auth: UserAuth, request: Request, db: Session = Depends(get_db)):
     res = {
         "names": [],
         "details": []
@@ -130,29 +130,49 @@ async def get_cases_infos(auth: UserAuth, db: Session = Depends(get_db)):
     # get cases from db
     cases = db.query(Case).filter(Case.assay_uuid == auth.assay_uuid,  # type: ignore
                                   Case.user_uuid == auth.user_uuid).all()  # type: ignore
+    # Construct base_url that works in both local dev and nginx-proxied Docker deploy.
+    # In Docker behind nginx, request.base_url is the internal container address.
+    # nginx passes X-Forwarded-Host + X-Forwarded-Proto, and PLUGIN_ROUTE_PREFIX is
+    # injected as an env var so we can reconstruct the externally-accessible URL.
+    import os
+    route_prefix = os.environ.get("PLUGIN_ROUTE_PREFIX", "")
+    forwarded_host = request.headers.get("x-forwarded-host")
+    if forwarded_host and route_prefix:
+        scheme = request.headers.get("x-forwarded-proto", "http")
+        base_url = f"{scheme}://{forwarded_host}{route_prefix}"
+    else:
+        base_url = str(request.base_url).rstrip('/')
+
     for case in cases:
         res["names"].append(case.name)
+
+        def proxy_url(file_type: str, path_val) -> str | None:
+            """Return backend proxy URL if the path exists in DB, else None."""
+            if not path_val:
+                return None
+            return f"{base_url}/api/files/{case.id}/{file_type}"
+
         res["details"].append({
             "id": case.id,
             "name": case.name,
             "assay_uuid": case.assay_uuid,
             "input": {
-                "contrast_pre": case.input.contrast_pre_path if case.input else None,
-                "contrast_1": case.input.contrast_1_path if case.input else None,
-                "contrast_2": case.input.contrast_2_path if case.input else None,
-                "contrast_3": case.input.contrast_3_path if case.input else None,
-                "contrast_4": case.input.contrast_4_path if case.input else None,
-                "registration_pre": case.input.registration_pre_path if case.input else None,
-                "registration_1": case.input.registration_1_path if case.input else None,
-                "registration_2": case.input.registration_2_path if case.input else None,
-                "registration_3": case.input.registration_3_path if case.input else None,
-                "registration_4": case.input.registration_4_path if case.input else None,
+                "contrast_pre":     proxy_url("contrast_pre",     case.input.contrast_pre_path if case.input else None),
+                "contrast_1":       proxy_url("contrast_1",       case.input.contrast_1_path if case.input else None),
+                "contrast_2":       proxy_url("contrast_2",       case.input.contrast_2_path if case.input else None),
+                "contrast_3":       proxy_url("contrast_3",       case.input.contrast_3_path if case.input else None),
+                "contrast_4":       proxy_url("contrast_4",       case.input.contrast_4_path if case.input else None),
+                "registration_pre": proxy_url("registration_pre", case.input.registration_pre_path if case.input else None),
+                "registration_1":   proxy_url("registration_1",   case.input.registration_1_path if case.input else None),
+                "registration_2":   proxy_url("registration_2",   case.input.registration_2_path if case.input else None),
+                "registration_3":   proxy_url("registration_3",   case.input.registration_3_path if case.input else None),
+                "registration_4":   proxy_url("registration_4",   case.input.registration_4_path if case.input else None),
             },
             "output": {
-                # Config.OUTPUTS[0]: mask-meta-json
+                # Config.OUTPUTS[0]: mask_meta_json
                 "mask_meta_json_path": case.output.mask_meta_json_path if case.output else None,
                 "mask_meta_json_size": case.output.mask_meta_json_size if case.output else None,
-                # Config.OUTPUTS[1-3]: mask-layer*-nii
+                # Config.OUTPUTS[1-4]: mask_layer*_nii
                 "mask_layer1_nii_path": case.output.mask_layer1_nii_path if case.output else None,
                 "mask_layer1_nii_size": case.output.mask_layer1_nii_size if case.output else None,
                 "mask_layer2_nii_path": case.output.mask_layer2_nii_path if case.output else None,
@@ -161,7 +181,7 @@ async def get_cases_infos(auth: UserAuth, db: Session = Depends(get_db)):
                 "mask_layer3_nii_size": case.output.mask_layer3_nii_size if case.output else None,
                 "mask_layer4_nii_path": case.output.mask_layer4_nii_path if case.output else None,
                 "mask_layer4_nii_size": case.output.mask_layer4_nii_size if case.output else None,
-                # Config.OUTPUTS[4]: mask-obj
+                # Config.OUTPUTS[5]: mask_obj
                 "mask_obj_path": case.output.mask_obj_path if case.output else None,
                 "mask_obj_size": case.output.mask_obj_size if case.output else None,
                 "mask_glb_path": case.output.mask_glb_path if case.output else None,
@@ -700,6 +720,71 @@ async def init_mask_layers(request: model.MaskInitRequest, db: Session = Depends
         "dimensions": request.dimensions,
         "layers_initialized": ["layer1", "layer2", "layer3"]
     }
+
+
+# ---------------------------------------------------------------------------
+# File proxy: maps file_type names to CaseInput column attributes
+# ---------------------------------------------------------------------------
+_FILE_TYPE_TO_ATTR = {
+    "contrast_pre":     "contrast_pre_path",
+    "contrast_1":       "contrast_1_path",
+    "contrast_2":       "contrast_2_path",
+    "contrast_3":       "contrast_3_path",
+    "contrast_4":       "contrast_4_path",
+    "registration_pre": "registration_pre_path",
+    "registration_1":   "registration_1_path",
+    "registration_2":   "registration_2_path",
+    "registration_3":   "registration_3_path",
+    "registration_4":   "registration_4_path",
+}
+
+
+@router.get("/api/files/{case_id}/{file_type}")
+async def get_file_proxy(case_id: int, file_type: str, db: Session = Depends(get_db)):
+    """
+    Stream a MinIO object through the backend so the browser never needs to
+    reach MinIO directly.  This avoids the presigned-URL host mismatch
+    problem in Docker (internal minio:9000 vs external localhost:8004).
+    """
+    if file_type not in _FILE_TYPE_TO_ATTR:
+        raise HTTPException(status_code=400, detail=f"Unknown file_type: {file_type}")
+
+    case_input = db.query(CaseInput).filter(CaseInput.case_id == case_id).first()  # type: ignore
+    if not case_input:
+        raise HTTPException(status_code=404, detail="Case input not found")
+
+    stored_url = getattr(case_input, _FILE_TYPE_TO_ATTR[file_type])
+    if not stored_url:
+        raise HTTPException(status_code=404, detail=f"No file for {file_type} in case {case_id}")
+
+    try:
+        minio_svc = MinIOService()
+        bucket, object_path = minio_svc._extract_bucket_and_path(stored_url)
+        stat = minio_svc.client.stat_object(bucket, object_path)
+        response = minio_svc.client.get_object(bucket, object_path)
+        filename = object_path.rsplit("/", 1)[-1]
+
+        def iterfile():
+            try:
+                for chunk in response.stream(1024 * 64):  # 64 KB chunks
+                    yield chunk
+            finally:
+                response.close()
+                response.release_conn()
+
+        return StreamingResponse(
+            iterfile(),
+            media_type="application/octet-stream",
+            headers={
+                "Content-Length": str(stat.size),
+                "Content-Disposition": f"inline; filename={filename}",
+                "x-file-name": filename,
+            },
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to stream file from MinIO: {e}")
 
 
 @router.websocket("/ws/mask/{case_id}")

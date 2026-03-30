@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from typing import List
 from sqlalchemy.orm import Session
 from models.api_models import ToolConfigRequest
+from services.minio_service import MinIOValidationError
 from models.db_model import User, Assay, Case, CaseInput, CaseOutput
 from services.minio_service import MinIOService
 from database.database import get_db, init_db
@@ -65,16 +66,34 @@ async def root():
     return "Welcome to segmentation backend"
 
 
+@app.get('/api/health')
+async def health():
+    return {"status": "ok"}
+
+
 @app.post('/api/tool-config')
 async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_db)):
-    print(f"Received tool config for user: {request.user_info.uuid}")
+    print(f"\n{'='*60}")
+    print(f"[tool-config] user={request.user_info.uuid}, assay={request.assay_info.uuid}")
+    print(f"  datasets: {request.assay_info.datasets}")
+    print(f"  cohorts:  {request.assay_info.cohorts}")
+    print(f"  minio:    {request.system.minio.base_url}")
+    print(f"{'='*60}")
 
     # 1. Validation & Resolution
     minio_service = MinIOService()
 
     # 1.1 Validate Minio public path
-    minio_public_path = request.system.minio.public_path
-    minio_service.validate_public_path(minio_public_path)
+    minio_base_url = request.system.minio.base_url
+    print(f"[Step 1.1] Validating MinIO base URL: {minio_base_url}")
+    try:
+        minio_service.validate_base_url(minio_base_url)
+    except MinIOValidationError as e:
+        print(f"[Step 1.1] FAILED: {e.summary}")
+        raise HTTPException(status_code=400, detail={
+            "step": e.step, "summary": e.summary, "detail": e.detail
+        })
+    print(f"[Step 1.1] OK")
 
     datasets = request.assay_info.datasets
     cohorts = request.assay_info.cohorts
@@ -84,20 +103,30 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
     try:
         # returns { cohort_name: { input_type: full_url } }
         resolved_results = minio_service.validate_and_resolve_inputs(
-            public_path=minio_public_path,
+            public_path=minio_base_url,
             datasets=datasets,
             cohorts=cohorts,
             required_inputs=required_inputs
         )
-    except ValueError as e:
+        print(f"[Step 1.4] Input resolution complete")
+    except MinIOValidationError as e:
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=400, detail=str(e))
+        print(f"[Step {e.step}] FAILED: {e.summary}")
+        raise HTTPException(status_code=400, detail={
+            "step": e.step, "summary": e.summary, "detail": e.detail
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail={
+            "step": "unknown", "summary": f"Unexpected validation error: {e}", "detail": str(e)
+        })
 
     # Rewrite URLs for Docker environment (replace internal MinIO host with external address)
     external_base = get_external_base_url()
     if external_base:
-        print(f"Docker detected: rewriting URLs with external base: {external_base}")
+        print(f"Docker detected: rewriting MinIO URLs with external base: {external_base}")
         for cohort in resolved_results:
             for input_type in resolved_results[cohort]:
                 resolved_results[cohort][input_type] = rewrite_url_for_docker(
@@ -135,7 +164,7 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                 uuid=request.assay_info.uuid,
                 user_uuid=user.uuid,
                 name=request.assay_info.name,
-                minio_public_path=minio_public_path,
+                minio_base_url=minio_base_url,
                 datasets_config=datasets,
                 cohorts_config=cohorts,
                 output_path=str(output_dir),
@@ -164,29 +193,29 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
             # 4. Inputs
             # "update to case_inputs table"
             # We have resolved_results[cohort]['contrast-pre'] -> url
-            contrast_pre_url = resolved_results[cohort].get("contrast-pre")
-            contrast_1_url = resolved_results[cohort].get("contrast-1")
-            contrast_2_url = resolved_results[cohort].get("contrast-2")
-            contrast_3_url = resolved_results[cohort].get("contrast-3")
-            contrast_4_url = resolved_results[cohort].get("contrast-4")
-            registration_pre_url = resolved_results[cohort].get("registration-pre")
-            registration_1_url = resolved_results[cohort].get("registration-1")
-            registration_2_url = resolved_results[cohort].get("registration-2")
-            registration_3_url = resolved_results[cohort].get("registration-3")
-            registration_4_url = resolved_results[cohort].get("registration-4")
+            contrast_pre_url = resolved_results[cohort].get("contrast_pre")
+            contrast_1_url = resolved_results[cohort].get("contrast_1")
+            contrast_2_url = resolved_results[cohort].get("contrast_2")
+            contrast_3_url = resolved_results[cohort].get("contrast_3")
+            contrast_4_url = resolved_results[cohort].get("contrast_4")
+            registration_pre_url = resolved_results[cohort].get("registration_pre")
+            registration_1_url = resolved_results[cohort].get("registration_1")
+            registration_2_url = resolved_results[cohort].get("registration_2")
+            registration_3_url = resolved_results[cohort].get("registration_3")
+            registration_4_url = resolved_results[cohort].get("registration_4")
 
             if not case.input:
-                case_input = CaseInput(case_id=case.id, 
-                                        contrast_pre_path=contrast_pre_url, 
-                                        contrast_1_path=contrast_1_url, 
-                                        contrast_2_path=contrast_2_url, 
-                                        contrast_3_path=contrast_3_url, 
-                                        contrast_4_path=contrast_4_url, 
-                                        registration_pre_path=registration_pre_url, 
-                                        registration_1_path=registration_1_url, 
-                                        registration_2_path=registration_2_url, 
-                                        registration_3_path=registration_3_url, 
-                                        registration_4_path=registration_4_url)
+                case_input = CaseInput(case_id=case.id,
+                                       contrast_pre_path=contrast_pre_url,
+                                       contrast_1_path=contrast_1_url,
+                                       contrast_2_path=contrast_2_url,
+                                       contrast_3_path=contrast_3_url,
+                                       contrast_4_path=contrast_4_url,
+                                       registration_pre_path=registration_pre_url,
+                                       registration_1_path=registration_1_url,
+                                       registration_2_path=registration_2_url,
+                                       registration_3_path=registration_3_url,
+                                       registration_4_path=registration_4_url)
                 db.add(case_input)
             else:
                 case.input.contrast_pre_path = contrast_pre_url
@@ -206,7 +235,7 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                 # Create case-specific folder
                 case_folder = output_dir / cohort
                 case_folder.mkdir(parents=True, exist_ok=True)
-                
+
                 file_info = {}
 
                 for idx, output_type in enumerate(Config.OUTPUTS):
@@ -240,30 +269,29 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                 # Update case_output with fields matching Config.OUTPUTS
                 case_output = CaseOutput(
                     case_id=case.id,
-                    # Config.OUTPUTS[0]: mask-meta-json
-                    mask_meta_json_path=file_info.get("mask-meta-json", {}).get("path"),
-                    mask_meta_json_size=file_info.get("mask-meta-json", {}).get("size"),
-                    # Config.OUTPUTS[1-3]: mask-layer1-nii, mask-layer2-nii, mask-layer3-nii
-                    mask_layer1_nii_path=file_info.get("mask-layer1-nii", {}).get("path"),
-                    mask_layer1_nii_size=file_info.get("mask-layer1-nii", {}).get("size"),
-                    mask_layer2_nii_path=file_info.get("mask-layer2-nii", {}).get("path"),
-                    mask_layer2_nii_size=file_info.get("mask-layer2-nii", {}).get("size"),
-                    mask_layer3_nii_path=file_info.get("mask-layer3-nii", {}).get("path"),
-                    mask_layer3_nii_size=file_info.get("mask-layer3-nii", {}).get("size"),
-                    mask_layer4_nii_path=file_info.get("mask-layer4-nii", {}).get("path"),
-                    mask_layer4_nii_size=file_info.get("mask-layer4-nii", {}).get("size"),
-                    # Config.OUTPUTS[4]: mask-obj
-                    mask_obj_path=file_info.get("mask-obj", {}).get("path"),
-                    mask_obj_size=file_info.get("mask-obj", {}).get("size"),
+                    # Config.OUTPUTS[0]: mask_meta_json
+                    mask_meta_json_path=file_info.get("mask_meta_json", {}).get("path"),
+                    mask_meta_json_size=file_info.get("mask_meta_json", {}).get("size"),
+                    # Config.OUTPUTS[1-4]: mask_layer1_nii, mask_layer2_nii, mask_layer3_nii, mask_layer4_nii
+                    mask_layer1_nii_path=file_info.get("mask_layer1_nii", {}).get("path"),
+                    mask_layer1_nii_size=file_info.get("mask_layer1_nii", {}).get("size"),
+                    mask_layer2_nii_path=file_info.get("mask_layer2_nii", {}).get("path"),
+                    mask_layer2_nii_size=file_info.get("mask_layer2_nii", {}).get("size"),
+                    mask_layer3_nii_path=file_info.get("mask_layer3_nii", {}).get("path"),
+                    mask_layer3_nii_size=file_info.get("mask_layer3_nii", {}).get("size"),
+                    mask_layer4_nii_path=file_info.get("mask_layer4_nii", {}).get("path"),
+                    mask_layer4_nii_size=file_info.get("mask_layer4_nii", {}).get("size"),
+                    # Config.OUTPUTS[5]: mask_obj
+                    mask_obj_path=file_info.get("mask_obj", {}).get("path"),
+                    mask_obj_size=file_info.get("mask_obj", {}).get("size"),
 
-                    mask_glb_path=file_info.get("mask-glb", {}).get("path"),
-                    mask_glb_size=file_info.get("mask-glb", {}).get("size"),
+                    mask_glb_path=file_info.get("mask_glb", {}).get("path"),
+                    mask_glb_size=file_info.get("mask_glb", {}).get("size"),
 
                     temp_dataset_name="medical-image-annotator-outputs",
                 )
 
                 db.add(case_output)
-
 
         db.commit()
         return {"status": "success", "assay_id": assay.id}
@@ -275,8 +303,11 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
         print(f"[get_tool_config] Error during DB transaction:\n{error_tb}")
         raise HTTPException(
             status_code=500,
-            detail=f"{type(e).__name__} at {traceback.extract_tb(e.__traceback__)[-1].filename}:"
-                   f"{traceback.extract_tb(e.__traceback__)[-1].lineno} - {str(e)}"
+            detail={
+                "step": "db",
+                "summary": f"Internal server error during database operation",
+                "detail": f"{type(e).__name__}: {str(e)}"
+            }
         )
 
 

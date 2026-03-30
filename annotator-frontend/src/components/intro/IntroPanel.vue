@@ -74,6 +74,41 @@
 
         <a href="#" class="text-red-accent-2 text-decoration-none">Redo: </a>
         <p class="ml-9 mb-1"><span class="text-teal font-weight-bold">Ctrl+Y</span> or <span class="text-teal font-weight-bold">Ctrl+Shift+Z</span> (Windows) / <span class="text-teal font-weight-bold">Cmd+Shift+Z</span> (Mac).</p>
+
+        <v-progress-linear></v-progress-linear>
+
+        <!-- Validation Workflow -->
+        <p class="text-subtitle-1 font-weight-bold text-orange mt-4 mb-1">Validation Workflow</p>
+
+        <p class="ml-0 mb-3 text-body-2">
+          Review each case's segmentation mask and select one of the three validation actions below. You must complete the validation for the current case before navigating to another.
+        </p>
+
+        <a href="#" class="text-red-accent-2 text-decoration-none">No Need for Correction: </a>
+        <p class="ml-9 mb-1">The mask is accurate and requires no changes. Click this button to approve the case as-is.</p>
+
+        <a href="#" class="text-red-accent-2 text-decoration-none">Corrected: </a>
+        <p class="ml-9 mb-1">The mask needed adjustments. After making your corrections using the drawing tools, click this button to confirm the case has been corrected.</p>
+
+        <a href="#" class="text-red-accent-2 text-decoration-none">Reject: </a>
+        <p class="ml-9 mb-1">The mask has significant issues that cannot be reasonably corrected. Click this button to reject the case without modification.</p>
+
+        <a href="#" class="text-red-accent-2 text-decoration-none">Previous / Next: </a>
+        <p class="ml-9 mb-1">Navigate between cases. These buttons are only enabled after the current case has been validated (one of the three actions above must be selected).</p>
+
+        <v-progress-linear></v-progress-linear>
+
+        <!-- Layers -->
+        <p class="text-subtitle-1 font-weight-bold text-orange mt-4 mb-1">Layers</p>
+
+        <a href="#" class="text-red-accent-2 text-decoration-none">Model Predicted <span class="text-purple font-weight-bold">(Purple)</span>: </a>
+        <p class="ml-9 mb-1">AI model prediction overlay. <span class="text-teal font-weight-bold">View-only</span> — toggle visibility with the eye icon.</p>
+
+        <a href="#" class="text-red-accent-2 text-decoration-none">Researcher Manual <span class="text-orange font-weight-bold">(Orange)</span>: </a>
+        <p class="ml-9 mb-1">Researcher's manual annotation overlay. <span class="text-teal font-weight-bold">View-only</span> — toggle visibility with the eye icon.</p>
+
+        <a href="#" class="text-red-accent-2 text-decoration-none">Clinician Validated <span class="text-green font-weight-bold">(Green)</span>: </a>
+        <p class="ml-9 mb-1">Your editable layer. This is the active layer where corrections are made. Use the Sync button to save changes to a 3D model.</p>
       </div>
 
       
