@@ -30,3 +30,7 @@ class ToolConfigRequest(BaseModel):
 class UserAuth(BaseModel):
     user_uuid: str
     assay_uuid: str
+
+
+class ValidateRequest(BaseModel):
+    action: str  # "no_need_for_correction" | "corrected" | "reject"

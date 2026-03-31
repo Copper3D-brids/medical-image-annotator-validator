@@ -8,7 +8,7 @@ from utils.ws_manager import manager
 from models import model
 from task import task_oi
 from pathlib import Path
-from models.api_models import UserAuth
+from models.api_models import UserAuth, ValidateRequest
 from sqlalchemy.orm import Session
 from models.db_model import User, Assay, Case, CaseInput, CaseOutput
 from services.minio_service import MinIOService
@@ -18,7 +18,20 @@ import asyncio
 
 router = APIRouter()
 
-layers = ["layer1", "layer2", "layer3", "layer4"]
+layers = ["layer1", "layer2", "layer3"]
+
+VALID_ACTIONS = {"no_need_for_correction", "corrected", "reject"}
+
+
+def _read_validate_json(case_output):
+    """Read validate_json.json from disk for a CaseOutput record."""
+    if not case_output or not case_output.validate_json_path:
+        return None
+    try:
+        with open(case_output.validate_json_path) as f:
+            return json.loads(f.read())
+    except Exception:
+        return None
 
 
 @router.websocket('/ws/{case_id}')
@@ -121,6 +134,70 @@ async def download_sds(assay_uuid: str = Query(...), db: Session = Depends(get_d
     )
 
 
+@router.get("/api/validate-status/{case_id}")
+async def get_validate_status(case_id: int, db: Session = Depends(get_db)):
+    """Return current validation status for a case by reading its validate_json.json file."""
+    case_output = db.query(CaseOutput).filter(CaseOutput.case_id == case_id).first()  # type: ignore
+    if not case_output:
+        raise HTTPException(status_code=404, detail="CaseOutput not found")
+
+    if not case_output.validate_json_path:
+        raise HTTPException(status_code=404, detail="Validate JSON path not configured")
+
+    validate_path = Path(case_output.validate_json_path)
+    if not validate_path.exists():
+        raise HTTPException(status_code=404, detail="Validate JSON file not found")
+
+    try:
+        with open(validate_path) as f:
+            validate_data = json.loads(f.read())
+        return validate_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read validate JSON: {str(e)}")
+
+
+@router.post("/api/validate/{case_id}")
+async def update_validate_status(case_id: int, req: ValidateRequest, db: Session = Depends(get_db)):
+    """
+    Update validation status for a case.
+    Sets the selected action to true, others to false, and finished to true.
+    """
+    if req.action not in VALID_ACTIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid action: {req.action}. Must be one of: {', '.join(VALID_ACTIONS)}"
+        )
+
+    case_output = db.query(CaseOutput).filter(CaseOutput.case_id == case_id).first()  # type: ignore
+    if not case_output:
+        raise HTTPException(status_code=404, detail="CaseOutput not found")
+
+    if not case_output.validate_json_path:
+        raise HTTPException(status_code=404, detail="Validate JSON path not configured")
+
+    validate_path = Path(case_output.validate_json_path)
+    if not validate_path.exists():
+        raise HTTPException(status_code=404, detail="Validate JSON file not found")
+
+    # Build updated validation status
+    validate_data = {
+        "no_need_for_correction": req.action == "no_need_for_correction",
+        "corrected": req.action == "corrected",
+        "reject": req.action == "reject",
+        "finished": True,  # Any action being true means case is finished
+    }
+
+    # Write updated JSON to file
+    validate_path.write_text(json.dumps(validate_data, indent=2))
+
+    # Update file size in DB
+    case_output.validate_json_size = validate_path.stat().st_size
+    db.commit()
+    db.refresh(case_output)
+
+    return validate_data
+
+
 @router.post('/api/cases')
 async def get_cases_infos(auth: UserAuth, request: Request, db: Session = Depends(get_db)):
     res = {
@@ -167,25 +244,17 @@ async def get_cases_infos(auth: UserAuth, request: Request, db: Session = Depend
                 "registration_2":   proxy_url("registration_2",   case.input.registration_2_path if case.input else None),
                 "registration_3":   proxy_url("registration_3",   case.input.registration_3_path if case.input else None),
                 "registration_4":   proxy_url("registration_4",   case.input.registration_4_path if case.input else None),
+                "model_predicted_nii": proxy_url("model_predicted_nii", case.input.model_predicted_nii_path if case.input else None),
+                "researcher_manual_nii": proxy_url("researcher_manual_nii", case.input.researcher_manual_nii_path if case.input else None),
             },
             "output": {
-                # Config.OUTPUTS[0]: mask_meta_json
                 "mask_meta_json_path": case.output.mask_meta_json_path if case.output else None,
                 "mask_meta_json_size": case.output.mask_meta_json_size if case.output else None,
-                # Config.OUTPUTS[1-4]: mask_layer*_nii
-                "mask_layer1_nii_path": case.output.mask_layer1_nii_path if case.output else None,
-                "mask_layer1_nii_size": case.output.mask_layer1_nii_size if case.output else None,
-                "mask_layer2_nii_path": case.output.mask_layer2_nii_path if case.output else None,
-                "mask_layer2_nii_size": case.output.mask_layer2_nii_size if case.output else None,
-                "mask_layer3_nii_path": case.output.mask_layer3_nii_path if case.output else None,
-                "mask_layer3_nii_size": case.output.mask_layer3_nii_size if case.output else None,
-                "mask_layer4_nii_path": case.output.mask_layer4_nii_path if case.output else None,
-                "mask_layer4_nii_size": case.output.mask_layer4_nii_size if case.output else None,
-                # Config.OUTPUTS[5]: mask_obj
-                "mask_obj_path": case.output.mask_obj_path if case.output else None,
-                "mask_obj_size": case.output.mask_obj_size if case.output else None,
+                "clinician_validated_nii_path": case.output.clinician_validated_nii_path if case.output else None,
+                "clinician_validated_nii_size": case.output.clinician_validated_nii_size if case.output else None,
                 "mask_glb_path": case.output.mask_glb_path if case.output else None,
                 "mask_glb_size": case.output.mask_glb_size if case.output else None,
+                "validate_json": _read_validate_json(case.output) if case.output else None,
             }
         })
     return res
@@ -251,19 +320,11 @@ async def init_mask(mask_layer: model.MaskInitRequest, db: Session = Depends(get
             origin=mask_layer.spaceOrigin if mask_layer.spaceOrigin else [0.0, 0.0, 0.0]
         )
 
-    # Step 2: Create empty NIfTI file for the specified layer
-    # Validate layerId
-    if mask_layer.layerId not in layers:
-        raise HTTPException(status_code=400, detail="Invalid layerId. Must be layer1, layer2, or layer3")
-
-    # Get the NIfTI path for this layer from database
-    nii_path_attr = f"mask_{mask_layer.layerId}_nii_path"
-    nii_size_attr = f"mask_{mask_layer.layerId}_nii_size"
-
-    nii_path = getattr(case_output, nii_path_attr)
+    # Step 2: Create empty NIfTI file for clinician_validated_nii (the only editable layer)
+    nii_path = case_output.clinician_validated_nii_path
 
     if not nii_path:
-        raise HTTPException(status_code=400, detail=f"{mask_layer.layerId} path not configured in database")
+        raise HTTPException(status_code=400, detail="clinician_validated_nii path not configured in database")
 
     # Create the empty NIfTI file
     file_size = tools.create_nifti_file(
@@ -274,7 +335,7 @@ async def init_mask(mask_layer: model.MaskInitRequest, db: Session = Depends(get
     )
 
     # Update the size in database
-    setattr(case_output, nii_size_attr, file_size)
+    case_output.clinician_validated_nii_size = file_size
 
     # Commit changes to database
     db.commit()
@@ -283,7 +344,7 @@ async def init_mask(mask_layer: model.MaskInitRequest, db: Session = Depends(get
     return {
         "success": True,
         "dimensions": mask_layer.dimensions,
-        "layer_initialized": mask_layer.layerId,
+        "layer_initialized": "clinician_validated_nii",
         "file_size": file_size
     }
 
@@ -308,22 +369,15 @@ async def replace_mask(mask_update: model.MaskSliceUpdate, db: Session = Depends
     if not case_output:
         raise HTTPException(status_code=404, detail="CaseOutput not found")
 
-    # Validate layerId
-    if mask_update.layerId not in layers:
-        raise HTTPException(status_code=400, detail="Invalid layerId. Must be layer1, layer2, layer3, or layer4")
-
-    # Get the NIfTI path for this layer from database
-    nii_path_attr = f"mask_{mask_update.layerId}_nii_path"
-    nii_size_attr = f"mask_{mask_update.layerId}_nii_size"
-
-    nii_path = getattr(case_output, nii_path_attr)
+    # Only clinician_validated_nii (layer3) is editable
+    nii_path = case_output.clinician_validated_nii_path
 
     if not nii_path:
-        raise HTTPException(status_code=400, detail=f"{mask_update.layerId} path not configured in database")
+        raise HTTPException(status_code=400, detail="clinician_validated_nii path not configured in database")
 
     nii_file = Path(nii_path)
     if not nii_file.exists():
-        raise HTTPException(status_code=404, detail=f"{mask_update.layerId} NIfTI file not found: {nii_path}")
+        raise HTTPException(status_code=404, detail=f"clinician_validated_nii NIfTI file not found: {nii_path}")
 
     try:
         # Update the slice in the NIfTI file
@@ -337,7 +391,7 @@ async def replace_mask(mask_update: model.MaskSliceUpdate, db: Session = Depends
         )
 
         # Update the size in database
-        setattr(case_output, nii_size_attr, updated_size)
+        case_output.clinician_validated_nii_size = updated_size
 
         # Commit changes to database
         db.commit()
@@ -357,131 +411,79 @@ async def replace_mask(mask_update: model.MaskSliceUpdate, db: Session = Depends
 
 @router.get("/api/clearmesh")
 async def clear_mesh(case_id: str = Query(None), db: Session = Depends(get_db)):
+    """Clear the GLB mesh file for a case."""
     case_output = db.query(CaseOutput).filter(CaseOutput.case_id == case_id).first()  # type: ignore
     if not case_output:
         raise HTTPException(status_code=404, detail="CaseOutput not found")
 
     assert isinstance(case_output, CaseOutput)
-    mesh_obj_path = Path(case_output.mask_obj_path)
-    if mesh_obj_path.exists():
-        mesh_obj_path.write_text("")
-        case_output.mask_obj_size = mesh_obj_path.stat().st_size
-
-        db.commit()
-        db.refresh(case_output)
-        return True
-    else:
-        mesh_obj_path.mkdir(parents=True, exist_ok=True)
-        print("No mesh obj exists!")
-        return False
+    if case_output.mask_glb_path:
+        glb_path = Path(case_output.mask_glb_path)
+        if glb_path.exists():
+            glb_path.write_bytes(b"")
+            case_output.mask_glb_size = 0
+            db.commit()
+            db.refresh(case_output)
+            return True
+    return False
 
 
 @router.get("/api/mask/save")
 async def save_mask(
         case_id: str,
-        layer_id: str = Query("layer1", description="Layer to convert to OBJ (layer1/layer2/layer3)"),
+        layer_id: str = Query("layer3", description="Layer to convert to GLTF"),
         background_tasks: BackgroundTasks = None,
         db: Session = Depends(get_db)
 ):
     """
-    Convert a NIfTI mask layer to OBJ 3D mesh format.
-
-    This endpoint triggers a background task that:
-    1. Reads the specified layer's NIfTI file
-    2. Generates a 3D mesh using marching cubes
-    3. Writes the mesh to OBJ format
-    4. Notifies the frontend via WebSocket when complete
-
-    Args:
-        case_id: ID of the case to process
-        layer_id: Layer to convert ('layer1', 'layer2', or 'layer3'), defaults to 'layer1'
-        background_tasks: FastAPI background tasks
-        db: Database session
-
-    Returns:
-        Success status with layer information
+    Convert clinician_validated_nii to GLTF 3D mesh format.
+    Redirects to GLTF conversion (OBJ format is no longer used).
     """
-    # Validate case exists
     case_output = db.query(CaseOutput).filter(CaseOutput.case_id == case_id).first()  # type: ignore
     if not case_output:
         raise HTTPException(status_code=404, detail="CaseOutput not found")
 
-    # Validate layer_id
-    if layer_id not in ["layer1", "layer2", "layer3"]:
-        raise HTTPException(status_code=400, detail="Invalid layer_id. Must be layer1, layer2, or layer3")
-
-    # Check if layer has data
-    nii_size_attr = f"mask_{layer_id}_nii_size"
-    nii_size = getattr(case_output, nii_size_attr)
-
+    nii_size = case_output.clinician_validated_nii_size
     if not nii_size or nii_size == 0:
-        raise HTTPException(status_code=400, detail=f"{layer_id} has no data to convert")
+        raise HTTPException(status_code=400, detail="clinician_validated_nii has no data to convert")
 
-    # Add background task to convert NIfTI to OBJ
-    background_tasks.add_task(task_oi.obj_converter, case_id, layer_id)
+    background_tasks.add_task(task_oi.gltf_converter, case_id)
 
     return {
         "success": True,
-        "message": f"Started converting {layer_id} to OBJ for case {case_id}",
-        "layer_id": layer_id
+        "message": f"Started converting clinician_validated_nii to GLTF for case {case_id}",
+        "layer_id": "layer3"
     }
 
 
 @router.get("/api/mask/save-gltf")
 async def save_mask_gltf(
         case_id: str,
-        layer_id: str = Query("layer1", description="Layer to convert to GLTF (layer1/layer2/layer3)"),
+        layer_id: str = Query("layer3", description="Layer to convert to GLTF (default: layer3/clinician_validated)"),
         background_tasks: BackgroundTasks = None,
         db: Session = Depends(get_db)
 ):
     """
-    Convert a NIfTI mask layer to GLTF 3D mesh format with channel-specific colors.
+    Convert clinician_validated_nii to GLTF 3D mesh format with channel-specific colors.
 
-    This endpoint triggers a background task that:
-    1. Reads the specified layer's NIfTI file
-    2. For each channel (1-8), generates a separate 3D mesh using marching cubes
-    3. Assigns distinct colors to each channel mesh
-    4. Exports all meshes to a single GLTF file with materials
-    5. Notifies the frontend via WebSocket when complete
-
-    Unlike OBJ export which merges all channels into a single mesh,
-    GLTF export preserves channel information with color-coded meshes.
-
-    Args:
-        case_id: ID of the case to process
-        layer_id: Layer to convert ('layer1', 'layer2', or 'layer3'), defaults to 'layer1'
-        background_tasks: FastAPI background tasks
-        db: Database session
-
-    Returns:
-        Success status with layer information
-
-    Example:
-        GET /api/mask/save-gltf?case_id=123&layer_id=layer1
+    Triggers a background task that reads the clinician validated NIfTI file,
+    generates per-channel 3D meshes using marching cubes, and exports to GLB.
+    Notifies the frontend via WebSocket when complete.
     """
-    # Validate case exists
     case_output = db.query(CaseOutput).filter(CaseOutput.case_id == case_id).first()  # type: ignore
     if not case_output:
         raise HTTPException(status_code=404, detail="CaseOutput not found")
 
-    # Validate layer_id
-    if layer_id not in ["layer1", "layer2", "layer3"]:
-        raise HTTPException(status_code=400, detail="Invalid layer_id. Must be layer1, layer2, or layer3")
-
-    # Check if layer has data
-    nii_size_attr = f"mask_{layer_id}_nii_size"
-    nii_size = getattr(case_output, nii_size_attr)
-
+    nii_size = case_output.clinician_validated_nii_size
     if not nii_size or nii_size == 0:
-        raise HTTPException(status_code=400, detail=f"{layer_id} has no data to convert")
+        raise HTTPException(status_code=400, detail="clinician_validated_nii has no data to convert")
 
-    # Add background task to convert NIfTI to GLTF
-    background_tasks.add_task(task_oi.gltf_converter, case_id, layer_id)
+    background_tasks.add_task(task_oi.gltf_converter, case_id)
 
     return {
         "success": True,
-        "message": f"Started converting {layer_id} to GLTF with channel colors for case {case_id}",
-        "layer_id": layer_id,
+        "message": f"Started converting clinician_validated_nii to GLTF for case {case_id}",
+        "layer_id": "layer3",
         "format": "gltf"
     }
 
@@ -518,12 +520,11 @@ async def get_display_breast_model(name: str = Query(None)):
 @router.get("/api/mask/all/{case_id}")
 async def get_all_masks(case_id: int, db: Session = Depends(get_db)):
     """
-    Load all 3 mask layers for a case in a single request.
+    Load the clinician_validated_nii mask for a case.
     Returns msgpack-encoded binary data for efficient transfer.
-    
-    Frontend usage: 
-        const data = msgpack.decode(new Uint8Array(await response.arrayBuffer()))
-        if (data.layer1) segmentationManager.setLayerData('layer1', new Uint8Array(data.layer1))
+
+    In the validator variant, only layer3 (clinician_validated_nii) is stored locally.
+    Layers 1 (model_predicted) and 2 (researcher_manual) are loaded via the file proxy.
     """
     import msgpack
     from fastapi.responses import Response
@@ -533,27 +534,22 @@ async def get_all_masks(case_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="CaseOutput not found")
 
     masks = {
-        "shape": None,  # Will be populated from NIfTI header if data exists
+        "shape": None,
     }
 
-    # Load each layer's NIfTI file if it exists and has data
-    for layer_idx in range(1, 4):
-        layer_path_attr = f"mask_layer{layer_idx}_nii_path"
-        layer_size_attr = f"mask_layer{layer_idx}_nii_size"
+    # Load clinician_validated_nii (the only locally stored editable layer)
+    layer_path = case_output.clinician_validated_nii_path
+    layer_size = case_output.clinician_validated_nii_size
 
-        layer_path = getattr(case_output, layer_path_attr)
-        layer_size = getattr(case_output, layer_size_attr)
-
-        if layer_path and layer_size and layer_size > 0:
-            file_path = Path(layer_path)
-            if file_path.exists() and file_path.stat().st_size > 0:
-                # Read the raw bytes of the NIfTI file
-                with open(file_path, "rb") as f:
-                    masks[f"layer{layer_idx}"] = f.read()
-            else:
-                masks[f"layer{layer_idx}"] = None
+    if layer_path and layer_size and layer_size > 0:
+        file_path = Path(layer_path)
+        if file_path.exists() and file_path.stat().st_size > 0:
+            with open(file_path, "rb") as f:
+                masks["layer3"] = f.read()
         else:
-            masks[f"layer{layer_idx}"] = None
+            masks["layer3"] = None
+    else:
+        masks["layer3"] = None
 
     return Response(content=msgpack.packb(masks), media_type="application/msgpack")
 
@@ -561,10 +557,8 @@ async def get_all_masks(case_id: int, db: Session = Depends(get_db)):
 @router.get("/api/mask/raw/{case_id}/{layer_id}")
 async def get_mask_raw(case_id: int, layer_id: str, db: Session = Depends(get_db)):
     """
-    Get raw Uint8Array data for a specific layer.
-    Returns application/octet-stream with X-Mask-Shape header.
-    
-    Useful for AI model inference results that skip NIfTI encoding.
+    Get raw NIfTI data for clinician_validated_nii layer.
+    Returns application/octet-stream.
     """
     from fastapi.responses import Response
 
@@ -572,22 +566,17 @@ async def get_mask_raw(case_id: int, layer_id: str, db: Session = Depends(get_db
     if not case_output:
         raise HTTPException(status_code=404, detail="CaseOutput not found")
 
-    # Validate layer_id
-    if layer_id not in ["layer1", "layer2", "layer3"]:
-        raise HTTPException(status_code=400, detail="Invalid layer_id. Must be layer1, layer2, or layer3")
-
-    layer_path = getattr(case_output, f"mask_{layer_id}_nii_path")
-    layer_size = getattr(case_output, f"mask_{layer_id}_nii_size")
+    # Only clinician_validated_nii (layer3) is stored locally
+    layer_path = case_output.clinician_validated_nii_path
+    layer_size = case_output.clinician_validated_nii_size
 
     if not layer_path or not layer_size or layer_size == 0:
-        raise HTTPException(status_code=404, detail=f"Layer {layer_id} has no data")
+        raise HTTPException(status_code=404, detail="clinician_validated_nii has no data")
 
     file_path = Path(layer_path)
     if not file_path.exists() or file_path.stat().st_size == 0:
-        raise HTTPException(status_code=404, detail=f"Layer {layer_id} file not found or empty")
+        raise HTTPException(status_code=404, detail="clinician_validated_nii file not found or empty")
 
-    # Read the NIfTI file and extract raw data
-    # For now, return the raw file bytes - frontend will parse NIfTI
     with open(file_path, "rb") as f:
         raw_data = f.read()
 
@@ -614,27 +603,22 @@ async def apply_mask_delta(delta: model.MaskDeltaRequest, db: Session = Depends(
     if not case_output:
         raise HTTPException(status_code=404, detail="CaseOutput not found")
 
-    # Validate layer
-    if delta.layer not in ["layer1", "layer2", "layer3"]:
-        raise HTTPException(status_code=400, detail="Invalid layer. Must be layer1, layer2, or layer3")
-
-    layer_path = getattr(case_output, f"mask_{delta.layer}_nii_path")
+    # Only clinician_validated_nii is editable
+    layer_path = case_output.clinician_validated_nii_path
     if not layer_path:
-        raise HTTPException(status_code=404, detail=f"Layer {delta.layer} path not configured")
+        raise HTTPException(status_code=404, detail="clinician_validated_nii path not configured")
 
     file_path = Path(layer_path)
 
     try:
-        # Load existing NIfTI or create new if empty
         if file_path.exists() and file_path.stat().st_size > 0:
             img = nib.load(str(file_path))
             data = img.get_fdata().astype(np.uint8)
             affine = img.affine
         else:
-            # Cannot apply delta to non-existent data
             raise HTTPException(
                 status_code=400,
-                detail=f"Layer {delta.layer} has no initialized data. Use /api/mask/init first."
+                detail="clinician_validated_nii has no initialized data. Use /api/mask/init first."
             )
 
         # Apply delta changes
@@ -649,7 +633,7 @@ async def apply_mask_delta(delta: model.MaskDeltaRequest, db: Session = Depends(
         nib.save(new_img, str(file_path))
 
         # Update size in database
-        setattr(case_output, f"mask_{delta.layer}_nii_size", file_path.stat().st_size)
+        case_output.clinician_validated_nii_size = file_path.stat().st_size
         db.commit()
         db.refresh(case_output)
 
@@ -698,19 +682,16 @@ async def init_mask_layers(request: model.MaskInitRequest, db: Session = Depends
     # Create empty volume
     empty_data = np.zeros((width, height, depth), dtype=np.uint8)
 
-    # Initialize each layer
-    for layer_idx in range(1, 4):
-        layer_path = getattr(case_output, f"mask_layer{layer_idx}_nii_path")
-        if layer_path:
-            file_path = Path(layer_path)
-            file_path.parent.mkdir(parents=True, exist_ok=True)
+    # Initialize clinician_validated_nii (the only editable layer)
+    layer_path = case_output.clinician_validated_nii_path
+    if layer_path:
+        file_path = Path(layer_path)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Create NIfTI image
-            img = nib.Nifti1Image(empty_data.copy(), affine)
-            nib.save(img, str(file_path))
+        img = nib.Nifti1Image(empty_data.copy(), affine)
+        nib.save(img, str(file_path))
 
-            # Update size in database
-            setattr(case_output, f"mask_layer{layer_idx}_nii_size", file_path.stat().st_size)
+        case_output.clinician_validated_nii_size = file_path.stat().st_size
 
     db.commit()
     db.refresh(case_output)
@@ -718,7 +699,7 @@ async def init_mask_layers(request: model.MaskInitRequest, db: Session = Depends
     return {
         "success": True,
         "dimensions": request.dimensions,
-        "layers_initialized": ["layer1", "layer2", "layer3"]
+        "layers_initialized": ["clinician_validated_nii"]
     }
 
 
@@ -736,6 +717,8 @@ _FILE_TYPE_TO_ATTR = {
     "registration_2":   "registration_2_path",
     "registration_3":   "registration_3_path",
     "registration_4":   "registration_4_path",
+    "model_predicted_nii": "model_predicted_nii_path",
+    "researcher_manual_nii": "researcher_manual_nii_path",
 }
 
 
