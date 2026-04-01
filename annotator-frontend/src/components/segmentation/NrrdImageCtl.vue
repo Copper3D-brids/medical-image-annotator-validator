@@ -11,6 +11,7 @@
 
       <v-select
       class="mx-4"
+      v-model="selectedCaseName"
       :items="allCasesDetails?.names"
       density="comfortable"
       label="Cases"
@@ -61,7 +62,7 @@
  * @emits Segmentation:RegisterImageChanged - Emitted when register toggle changes
  */
 import Switcher from "@/components/common/Switcher.vue";
-import { ref, onMounted, onUnmounted, onBeforeMount, watch } from "vue";
+import { ref, nextTick, onMounted, onUnmounted, onBeforeMount, watch } from "vue";
 import { useSegmentationCasesStore } from "@/store/app";
 import { storeToRefs } from "pinia";
 import emitter from "@/plugins/custom-emitter";
@@ -84,7 +85,10 @@ const { getCasesInfo } = useCases();
 const toast = useToast();
 
 /** All cases details and plugin ready flag from Pinia store */
-const { allCasesDetails, isPluginReady, currentCaseValidateStatus } = storeToRefs(useSegmentationCasesStore());
+const { allCasesDetails, isPluginReady, currentCaseValidateStatus, currentCaseId } = storeToRefs(useSegmentationCasesStore());
+
+/** Currently selected case name (v-model for v-select) */
+const selectedCaseName = ref<string | null>(null);
 
 /** Whether case selector is disabled (during loading) */
 const disableSelectCase = ref(false);
@@ -103,11 +107,11 @@ const slectedContrast = ref<string[]>([]);
  * Used for sorting selected contrasts in consistent order.
  */
 const contrastOrder: any = {
-  pre: 0,
-  contrast1: 1,
-  contrast2: 2,
-  contrast3: 3,
-  contrast4: 4,
+  contrast_pre: 0,
+  contrast_1: 1,
+  contrast_2: 2,
+  contrast_3: 3,
+  contrast_4: 4,
 };
 
 /** Whether showing registered images (true) or origin images (false) */
@@ -128,6 +132,9 @@ const switchLable = ref<"on" | "off">("on");
 /** Tracks selected state for each contrast phase */
 let contrastState: selecedType;
 
+/** Guard flag to prevent circular event emission when v-select is updated externally */
+let _suppressCaseSwitchEmit = false;
+
 onBeforeMount(() => {
   if (isPluginReady.value) {
     getCasesInfo(config!);
@@ -146,14 +153,38 @@ onMounted(() => {
 });
 
 
+/** Whether the current case has separate registration data */
+let caseHasRegistration = false;
+
 function manageEmitters() {
   emitter.on("Segmentation:FinishLoadAllCaseImages", emitterOnFinishLoadAllCaseImages);
   emitter.on("Segmentation:ContrastImageStates", emitterOnContrastImageStates);
+  emitter.on("Segementation:CaseSwitched", emitterOnExternalCaseSwitched);
+  emitter.on("Segmentation:CaseDetails", emitterOnCaseDetails);
 }
+
+const emitterOnCaseDetails = (details: any) => {
+  caseHasRegistration = !!details.hasRegistration;
+};
+
+/** Sync selectedCaseName when case is switched externally (e.g. ValidationPanel prev/next) */
+const emitterOnExternalCaseSwitched = (casename: string) => {
+  _suppressCaseSwitchEmit = true;
+  selectedCaseName.value = casename;
+  // Also update UI state for loading
+  disableSelectCase.value = true;
+  disableSelectContrast.value = true;
+  switchDisabled.value = true;
+  switchLable.value = "on";
+  switchRegisted.value = true;
+  switchLoading.value = "warning";
+  nextTick(() => { _suppressCaseSwitchEmit = false; });
+};
 
 const emitterOnFinishLoadAllCaseImages =  () => {
   disableSelectCase.value = false;
-  switchDisabled.value = false;
+  // Only enable register switch if actual registration data exists
+  switchDisabled.value = !caseHasRegistration;
   switchLoading.value = false;
 }
 const emitterOnContrastImageStates = (contrastStates:{[key:string]:boolean}) => {
@@ -171,9 +202,19 @@ const emitterOnContrastImageStates = (contrastStates:{[key:string]:boolean}) => 
 }
 
 function onCaseSwitched(casename: any) {
+  // Skip if this was triggered by an external event (prev/next/auto-select) updating the v-model
+  if (_suppressCaseSwitchEmit) return;
+
   // Guard: block switch if current case is not finished
   if (currentCaseValidateStatus.value && currentCaseValidateStatus.value.finished === false) {
     toast.warning("Please complete the current case validation before switching to another case.");
+    // Revert v-select back to the current active case name
+    const currentDetail = allCasesDetails.value?.details.find(
+      (d) => String(d.id) === String(currentCaseId.value)
+    );
+    nextTick(() => {
+      selectedCaseName.value = currentDetail?.name ?? null;
+    });
     return;
   }
   disableSelectCase.value = true;
@@ -182,6 +223,7 @@ function onCaseSwitched(casename: any) {
   switchLable.value = "on";
   switchRegisted.value = true;
   switchLoading.value = "warning";
+  selectedCaseName.value = casename;
   emitter.emit("Segementation:CaseSwitched", casename);
 }
 
@@ -229,6 +271,8 @@ const sort = (arr: string[]) => {
 onUnmounted(() => {
   emitter.off("Segmentation:FinishLoadAllCaseImages", emitterOnFinishLoadAllCaseImages);
   emitter.off("Segmentation:ContrastImageStates", emitterOnContrastImageStates);
+  emitter.off("Segementation:CaseSwitched", emitterOnExternalCaseSwitched);
+  emitter.off("Segmentation:CaseDetails", emitterOnCaseDetails);
 });
 
 </script>

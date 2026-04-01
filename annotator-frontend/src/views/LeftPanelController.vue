@@ -253,13 +253,16 @@ const handleAllImagesLoaded = async (res: IToolAfterLoadImagesResponse) => {
   sliceNav.updateNavigationAfterLoad();
 
 
-  // Build contrast state
+  // Build contrast state from actual input data (only non-null contrast fields)
   const selectedState: TContrastSelected = {};
-  for (let i = 0; i < res.allSlices.length; i++) {
-    if (i === 0) {
-      selectedState["pre"] = true;
-    } else {
-      selectedState["contrast" + i] = true;
+  const input = caseManagement.currentCaseDetail.value?.input;
+  if (input) {
+    const suffixes = ["pre", "1", "2", "3", "4"] as const;
+    for (const suffix of suffixes) {
+      const key = `contrast_${suffix}` as keyof typeof input;
+      if (input[key]) {
+        selectedState[`contrast_${suffix}`] = true;
+      }
     }
   }
 

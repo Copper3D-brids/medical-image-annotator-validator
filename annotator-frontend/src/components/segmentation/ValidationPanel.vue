@@ -43,7 +43,7 @@
       <div class="d-flex flex-column ga-2">
         <v-btn
           :variant="isActive('no_need_for_correction') ? 'flat' : 'outlined'"
-          :color="isActive('no_need_for_correction') ? 'success' : undefined"
+          :color="isActive('no_need_for_correction') ? 'teal' : 'teal-lighten-3'"
           size="small"
           block
           @click="onValidate('no_need_for_correction')"
@@ -54,7 +54,7 @@
 
         <v-btn
           :variant="isActive('corrected') ? 'flat' : 'outlined'"
-          :color="isActive('corrected') ? 'info' : undefined"
+          :color="isActive('corrected') ? 'amber-darken-2' : 'amber-lighten-3'"
           size="small"
           block
           @click="onValidate('corrected')"
@@ -65,7 +65,7 @@
 
         <v-btn
           :variant="isActive('reject') ? 'flat' : 'outlined'"
-          :color="isActive('reject') ? 'error' : undefined"
+          :color="isActive('reject') ? 'red-darken-1' : 'red-lighten-3'"
           size="small"
           block
           @click="onValidate('reject')"

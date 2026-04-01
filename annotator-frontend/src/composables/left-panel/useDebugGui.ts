@@ -109,14 +109,12 @@ export function useDebugGui(deps: IGuiDeps) {
 
         Copper.removeGuiFolderChilden(selectedContrastFolder);
 
-        const length = displaySlicesLength();
-        for (let i = 0; i < length; i++) {
-            let name = "";
-            i === 0 ? (name = "pre") : (name = "contrast" + i);
+        const keys = Object.keys(selectedState);
+        keys.forEach((name, i) => {
             selectedContrastFolder.add(selectedState, name).onChange((flag) => {
                 onContrastSelected(flag, i);
             });
-        }
+        });
     }
 
     /**

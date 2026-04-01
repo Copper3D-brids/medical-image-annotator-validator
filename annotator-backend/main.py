@@ -222,23 +222,25 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                     for field, value in input_fields.items():
                         setattr(case.input, field, value)
 
-                # 5. Output — create single sam-1/ folder with all output files
+                # 5. Output — one file per sam folder, driven by Config.OUTPUTS
                 if not case.output:
                     case_folder = output_dir / cohort
-                    sam_folder = case_folder / "sam-1"
-                    sam_folder.mkdir(parents=True, exist_ok=True)
+                    output_names = Config.OUTPUTS
+                    output_extensions = Config.OUTPUT_EXTENSIONS
 
-                    # Create output file paths
-                    mask_meta_json_path = sam_folder / "mask_meta_json.json"
-                    clinician_validated_nii_path = sam_folder / "clinician_validated_nii.nii.gz"
-                    mask_glb_path = sam_folder / "mask_glb.glb"
-                    validate_json_path = sam_folder / "validate_json.json"
+                    # Create sam folders and file paths dynamically
+                    output_paths = {}  # output_name -> Path
+                    for idx, out_name in enumerate(output_names, start=1):
+                        sam_folder = case_folder / f"sam-{idx}"
+                        sam_folder.mkdir(parents=True, exist_ok=True)
+                        ext = output_extensions.get(out_name, "")
+                        output_paths[out_name] = sam_folder / f"{out_name}{ext}"
 
-                    # Create mask_meta_json (empty JSON)
-                    if not mask_meta_json_path.exists():
-                        mask_meta_json_path.write_text("{}")
+                    # Initialize mask_meta_json (empty JSON)
+                    if not output_paths["mask_meta_json"].exists():
+                        output_paths["mask_meta_json"].write_text("{}")
 
-                    # Create validate_json with default values
+                    # Initialize validate_json with default values
                     yield sse_event("progress", {
                         "step": "create_validate_json",
                         "case": cohort,
@@ -251,9 +253,10 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                         "reject": False,
                         "finished": False
                     }
-                    validate_json_path.write_text(json.dumps(default_validate, indent=2))
+                    output_paths["validate_json"].write_text(json.dumps(default_validate, indent=2))
 
                     # Auto-copy researcher_manual_nii → clinician_validated_nii
+                    clinician_nii_path = output_paths["clinician_validated_nii"]
                     researcher_nii_url = resolved_results[cohort].get("researcher_manual_nii")
                     if researcher_nii_url:
                         yield sse_event("progress", {
@@ -265,44 +268,38 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                         try:
                             bucket, object_path = minio_service._extract_bucket_and_path(researcher_nii_url)
                             response = minio_service.client.get_object(bucket, object_path)
-                            with open(clinician_validated_nii_path, 'wb') as f:
+                            with open(clinician_nii_path, 'wb') as f:
                                 shutil.copyfileobj(response, f)
                             response.close()
                             response.release_conn()
-                            print(f"  Copied researcher_manual_nii → {clinician_validated_nii_path}")
+                            print(f"  Copied researcher_manual_nii → {clinician_nii_path}")
                         except Exception as e:
                             print(f"  Warning: Failed to copy researcher_manual_nii for {cohort}: {e}")
-                            # Create empty placeholder
-                            if not clinician_validated_nii_path.exists():
-                                clinician_validated_nii_path.touch()
+                            if not clinician_nii_path.exists():
+                                clinician_nii_path.touch()
                     else:
-                        # No researcher NII available, create empty placeholder
-                        if not clinician_validated_nii_path.exists():
-                            clinician_validated_nii_path.touch()
+                        if not clinician_nii_path.exists():
+                            clinician_nii_path.touch()
 
                     # Create empty GLB placeholder (will be overwritten by conversion)
+                    mask_glb_path = output_paths["mask_glb"]
                     if not mask_glb_path.exists():
                         mask_glb_path.touch()
 
-                    # Create CaseOutput record
-                    case_output_record = CaseOutput(
-                        case_id=case.id,
-                        mask_meta_json_path=str(mask_meta_json_path),
-                        mask_meta_json_size=mask_meta_json_path.stat().st_size,
-                        clinician_validated_nii_path=str(clinician_validated_nii_path),
-                        clinician_validated_nii_size=clinician_validated_nii_path.stat().st_size,
-                        mask_glb_path=str(mask_glb_path),
-                        mask_glb_size=mask_glb_path.stat().st_size,
-                        validate_json_path=str(validate_json_path),
-                        validate_json_size=validate_json_path.stat().st_size,
-                        temp_dataset_name="medical-image-annotator-outputs",
-                    )
+                    # Create CaseOutput record dynamically from Config.OUTPUTS
+                    case_output_kwargs = {"case_id": case.id, "temp_dataset_name": "medical-image-annotator-outputs"}
+                    for out_name in output_names:
+                        p = output_paths[out_name]
+                        case_output_kwargs[f"{out_name}_path"] = str(p)
+                        case_output_kwargs[f"{out_name}_size"] = p.stat().st_size
+
+                    case_output_record = CaseOutput(**case_output_kwargs)
                     db.add(case_output_record)
                     db.commit()
                     db.refresh(case_output_record)
 
                     # Auto-convert NII → GLTF (only if we have actual NII data)
-                    if researcher_nii_url and clinician_validated_nii_path.stat().st_size > 0:
+                    if researcher_nii_url and clinician_nii_path.stat().st_size > 0:
                         yield sse_event("progress", {
                             "step": "convert_gltf",
                             "case": cohort,
@@ -312,7 +309,7 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                         try:
                             result = convert_nii_to_gltf(
                                 case_output_record,
-                                nii_path=str(clinician_validated_nii_path),
+                                nii_path=str(clinician_nii_path),
                                 glb_path=str(mask_glb_path)
                             )
                             if result:

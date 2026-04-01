@@ -47,7 +47,7 @@ import emitter from "@/plugins/custom-emitter";
 import * as Copper from "copper3d";
 
 /** Currently open list groups (controlled by v-list v-model:opened) */
-const open = ref(["Cases"]);
+const open = ref(["Cases", "Validation"]);
 
 /** Whether navigation bar should be in sticky mode */
 const stickMode = ref<boolean>(true);
