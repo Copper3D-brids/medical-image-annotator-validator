@@ -1,0 +1,81 @@
+services:
+  frontend:
+    build:
+      context: ./annotator-frontend
+      dockerfile: Dockerfile
+    ports:
+      - "${FRONTEND_PORT:-3001}:80"
+    depends_on:
+      - backend
+    networks:
+      - annotator-validator-net
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./annotator-backend
+      dockerfile: backend_compose_dockerfile
+    environment:
+      - RUNNING_IN_DOCKER=true
+      - EXTERNAL_HOST=${EXTERNAL_HOST:-localhost}
+      - EXTERNAL_PORT=${FRONTEND_PORT:-3001}
+      - EXTERNAL_SCHEME=${EXTERNAL_SCHEME:-http}
+      - USE_SSL=${USE_SSL:-false}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - ./annotator-backend/outputs:/annotator_gui_backend/outputs
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - annotator-validator-net
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - annotator-validator-net
+    restart: unless-stopped
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      mc mb --ignore-existing myminio/measurements;
+      mc mb --ignore-existing myminio/tools;
+      mc anonymous set download myminio/tools;
+      echo 'MinIO buckets initialized';
+      "
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    networks:
+      - annotator-validator-net
+
+volumes:
+  minio_data:
+    driver: local
+
+networks:
+  annotator-validator-net:
+    driver: bridge
