@@ -71,17 +71,24 @@ export function useCaseManagement(deps: ICaseManagementDeps) {
     let regiterUrls: ICaseUrls = { nrrdUrls: [], jsonUrl: "" };
     let loadedUrls: ILoadUrls = {};
 
-    /** Whether the current case has separate registration data */
-    const hasRegistration = ref(false);
 
     /** Register switch bar status (true = register, false = origin) */
     let regiterSwitchBarStatus = true;
 
     /**
-     * Check whether any registration URL exists for the current case
+     * Syncs contrast and registration pairs.
+     * If one side has a URL and the other doesn't, copy it over.
+     * If both are null, leave them as-is.
      */
-    function hasRegistrationData(input: Record<InputKey, string>): boolean {
-        return suffixes.some((s) => input[`registration_${s}`] != null);
+    function syncPair(input: Record<InputKey, string>, suffix: Suffix) {
+        const cKey = `contrast_${suffix}` as const;
+        const rKey = `registration_${suffix}` as const;
+
+        if (input[cKey] == null && input[rKey] != null) {
+            input[cKey] = input[rKey];
+        } else if (input[rKey] == null && input[cKey] != null) {
+            input[rKey] = input[cKey];
+        }
     }
 
     /**
@@ -141,23 +148,22 @@ export function useCaseManagement(deps: ICaseManagementDeps) {
                         : "",
             };
 
-            // Collect contrast and registration URLs separately
+            // Sync pairs: if one side has a URL, copy to the other
             suffixes.forEach((suffix) => {
-                const contrastUrl = currentCaseDetail.value!.input[`contrast_${suffix}`];
-                const registrationUrl = currentCaseDetail.value!.input[`registration_${suffix}`];
-                if (contrastUrl) {
-                    originUrls.nrrdUrls.push(contrastUrl);
+                syncPair(currentCaseDetail.value!.input, suffix);
+                if (!!currentCaseDetail.value!.input[`registration_${suffix}`]) {
+                    regiterUrls.nrrdUrls.push(
+                        currentCaseDetail.value!.input[`registration_${suffix}`]
+                    );
                 }
-                if (registrationUrl) {
-                    regiterUrls.nrrdUrls.push(registrationUrl);
+                if (!!currentCaseDetail.value!.input[`contrast_${suffix}`]) {
+                    originUrls.nrrdUrls.push(
+                        currentCaseDetail.value!.input[`contrast_${suffix}`]
+                    );
                 }
             });
 
-            // Use registration if available, otherwise fall back to contrast
-            hasRegistration.value = hasRegistrationData(currentCaseDetail.value!.input);
-            currentCaseContrastUrls.value = hasRegistration.value
-                ? regiterUrls.nrrdUrls
-                : originUrls.nrrdUrls;
+            currentCaseContrastUrls.value = regiterUrls.nrrdUrls;
 
             emitter.emit("Segmentation:CaseDetails", {
                 currentCaseName: currentCaseName.value,
@@ -166,7 +172,6 @@ export function useCaseManagement(deps: ICaseManagementDeps) {
                 maskNrrd: !!currentCaseContrastUrls.value[1]
                     ? currentCaseContrastUrls.value[1]
                     : currentCaseContrastUrls.value[0],
-                hasRegistration: hasRegistration.value,
             });
         } else {
             throw new Error("Case detail not found");
@@ -179,12 +184,6 @@ export function useCaseManagement(deps: ICaseManagementDeps) {
      * Handles register/origin image switching
      */
     async function onRegistedStateChanged(isShowRegisterImage: boolean) {
-        // When no registration data exists, both states use contrast URLs
-        const effectiveRegUrls = regiterUrls.nrrdUrls.length > 0
-            ? regiterUrls.nrrdUrls
-            : originUrls.nrrdUrls;
-        const effectiveOriginUrls = originUrls.nrrdUrls;
-
         switchAnimationStatus(
             loadingContainer.value!,
             progress.value!,
@@ -202,24 +201,19 @@ export function useCaseManagement(deps: ICaseManagementDeps) {
                 displayLoadedMeshes = [...originMeshes];
                 nrrdTools.value!.switchAllSlicesArrayData(displaySlices);
             } else {
-                currentCaseContrastUrls.value = effectiveOriginUrls;
+                currentCaseContrastUrls.value = originUrls.nrrdUrls;
             }
-            sendToRightContrstUrl = effectiveOriginUrls[1]
-                ? effectiveOriginUrls[1]
-                : effectiveOriginUrls[0];
+            sendToRightContrstUrl = originUrls.nrrdUrls[1]
+                ? originUrls.nrrdUrls[1]
+                : originUrls.nrrdUrls[0];
         } else {
             regiterSwitchBarStatus = true;
-
-            if (registerSlices.length > 0) {
-                displaySlices = [...registerSlices];
-                displayLoadedMeshes = [...regitserMeshes];
-                nrrdTools.value!.switchAllSlicesArrayData(displaySlices);
-            } else {
-                currentCaseContrastUrls.value = effectiveRegUrls;
-            }
-            sendToRightContrstUrl = effectiveRegUrls[1]
-                ? effectiveRegUrls[1]
-                : effectiveRegUrls[0];
+            displaySlices = [...registerSlices];
+            displayLoadedMeshes = [...regitserMeshes];
+            nrrdTools.value!.switchAllSlicesArrayData(displaySlices);
+            sendToRightContrstUrl = regiterUrls.nrrdUrls[1]
+                ? regiterUrls.nrrdUrls[1]
+                : regiterUrls.nrrdUrls[0];
         }
 
         emitter.emit("Segmentation:RegisterButtonStatusChanged", {
@@ -283,7 +277,6 @@ export function useCaseManagement(deps: ICaseManagementDeps) {
         loadMask,
         currentCaseDetail,
         allCasesDetails,
-        hasRegistration,
         originUrls,
         regiterUrls,
         getRegisterSwitchBarStatus: () => regiterSwitchBarStatus,

@@ -153,19 +153,13 @@ onMounted(() => {
 });
 
 
-/** Whether the current case has separate registration data */
-let caseHasRegistration = false;
-
 function manageEmitters() {
   emitter.on("Segmentation:FinishLoadAllCaseImages", emitterOnFinishLoadAllCaseImages);
   emitter.on("Segmentation:ContrastImageStates", emitterOnContrastImageStates);
   emitter.on("Segementation:CaseSwitched", emitterOnExternalCaseSwitched);
-  emitter.on("Segmentation:CaseDetails", emitterOnCaseDetails);
 }
 
-const emitterOnCaseDetails = (details: any) => {
-  caseHasRegistration = !!details.hasRegistration;
-};
+
 
 /** Sync selectedCaseName when case is switched externally (e.g. ValidationPanel prev/next) */
 const emitterOnExternalCaseSwitched = (casename: string) => {
@@ -183,8 +177,8 @@ const emitterOnExternalCaseSwitched = (casename: string) => {
 
 const emitterOnFinishLoadAllCaseImages =  () => {
   disableSelectCase.value = false;
-  // Only enable register switch if actual registration data exists
-  switchDisabled.value = !caseHasRegistration;
+  // After syncPair, both origin and registration URLs exist; always enable the switch
+  switchDisabled.value = false;
   switchLoading.value = false;
 }
 const emitterOnContrastImageStates = (contrastStates:{[key:string]:boolean}) => {
@@ -272,7 +266,6 @@ onUnmounted(() => {
   emitter.off("Segmentation:FinishLoadAllCaseImages", emitterOnFinishLoadAllCaseImages);
   emitter.off("Segmentation:ContrastImageStates", emitterOnContrastImageStates);
   emitter.off("Segementation:CaseSwitched", emitterOnExternalCaseSwitched);
-  emitter.off("Segmentation:CaseDetails", emitterOnCaseDetails);
 });
 
 </script>
