@@ -49,7 +49,7 @@ export function useCaseManagement(deps: ICaseManagementDeps) {
     const { nrrdTools, loadingContainer, progress, config } = deps;
 
     const { allCasesDetails } = storeToRefs(useSegmentationCasesStore());
-    const { getAllCasesDetails } = useSegmentationCasesStore();
+    const { getAllCasesDetails, fetchValidateStatus } = useSegmentationCasesStore();
 
     /** Current case name */
     const currentCaseName = ref("");
@@ -128,6 +128,8 @@ export function useCaseManagement(deps: ICaseManagementDeps) {
         );
 
         if (currentCaseDetail.value) {
+            // Fetch validation status for the new case
+            fetchValidateStatus(currentCaseDetail.value.id);
             regiterUrls = {
                 nrrdUrls: [],
                 jsonUrl:

@@ -7,6 +7,7 @@
         title="Tools Core Settings"
       ></v-list-item>
       <ImageCtl />
+      <ValidationPanel />
       <OperationCtl />
       <NavRightPanel />
       <SysOpts>
@@ -37,6 +38,7 @@
  */
 import { ref, onMounted, onUnmounted } from "vue";
 import ImageCtl from "@/components/segmentation/NrrdImageCtl.vue";
+import ValidationPanel from "@/components/segmentation/ValidationPanel.vue";
 import OperationCtl from "@/components/segmentation/OperationCtl.vue";
 import NavRightPanel from "./NavRightPanel.vue";
 import SysOpts from "@/components/segmentation/SysOpts.vue";

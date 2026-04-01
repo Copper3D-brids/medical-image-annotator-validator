@@ -67,6 +67,7 @@ import { storeToRefs } from "pinia";
 import emitter from "@/plugins/custom-emitter";
 import { useAppConfig } from "@/plugins/hooks/config";
 import { useCases } from "@/plugins/hooks/cases";
+import { useToast } from "@/composables/useToast";
 
 /** Type for tracking selected state of each contrast phase */
 type selecedType = {
@@ -80,9 +81,10 @@ type resultType = {
 
 const { config } = useAppConfig();
 const { getCasesInfo } = useCases();
+const toast = useToast();
 
 /** All cases details and plugin ready flag from Pinia store */
-const { allCasesDetails, isPluginReady } = storeToRefs(useSegmentationCasesStore());
+const { allCasesDetails, isPluginReady, currentCaseValidateStatus } = storeToRefs(useSegmentationCasesStore());
 
 /** Whether case selector is disabled (during loading) */
 const disableSelectCase = ref(false);
@@ -169,6 +171,11 @@ const emitterOnContrastImageStates = (contrastStates:{[key:string]:boolean}) => 
 }
 
 function onCaseSwitched(casename: any) {
+  // Guard: block switch if current case is not finished
+  if (currentCaseValidateStatus.value && currentCaseValidateStatus.value.finished === false) {
+    toast.warning("Please complete the current case validation before switching to another case.");
+    return;
+  }
   disableSelectCase.value = true;
   disableSelectContrast.value = true;
   switchDisabled.value = true;

@@ -1,3 +1,10 @@
+export interface IValidateStatus {
+    no_need_for_correction: boolean;
+    corrected: boolean;
+    reject: boolean;
+    finished: boolean;
+}
+
 interface IInput {
     contrast_pre: string;
     contrast_1: string;
@@ -9,24 +16,18 @@ interface IInput {
     registration_2: string;
     registration_3: string;
     registration_4: string;
+    model_predicted_nii?: string;
+    researcher_manual_nii?: string;
 }
 
 interface IOutput {
     mask_meta_json_path: string;
     mask_meta_json_size: string | number;
-    mask_obj_path: string;
-    mask_obj_size: string | number;
+    clinician_validated_nii_path?: string;
+    clinician_validated_nii_size?: string | number;
     mask_glb_path: string;
     mask_glb_size: string | number;
-    // Phase 4/5: NIfTI mask layer paths and sizes
-    mask_layer1_nii_path?: string;
-    mask_layer1_nii_size?: string | number;
-    mask_layer2_nii_path?: string;
-    mask_layer2_nii_size?: string | number;
-    mask_layer3_nii_path?: string;
-    mask_layer3_nii_size?: string | number;
-    mask_layer4_nii_path?: string;
-    mask_layer4_nii_size?: string | number;
+    validate_json?: IValidateStatus;
 }
 
 export interface IDetails {
