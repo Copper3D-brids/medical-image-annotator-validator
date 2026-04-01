@@ -34,14 +34,40 @@
 
         <div class="health-info">
           <h2 class="health-title">Medical Image Annotator Initialization</h2>
-          <div class="health-status">
-            <div class="pulse-ring"></div>
-            <span>Connecting to Backend...</span>
-          </div>
-          <div class="progress-track">
-            <div class="progress-fill"></div>
-          </div>
-          <p class="health-attempt">Phase synchronization: Attempt {{ attemptCount }}</p>
+
+          <!-- Phase: health_check -->
+          <template v-if="processingPhase === 'health_check'">
+            <div class="health-status">
+              <div class="pulse-ring"></div>
+              <span>Connecting to Backend...</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill indeterminate"></div>
+            </div>
+            <p class="health-attempt">Phase synchronization: Attempt {{ attemptCount }}</p>
+          </template>
+
+          <!-- Phase: processing -->
+          <template v-else-if="processingPhase === 'processing'">
+            <div class="health-status">
+              <div class="pulse-ring pulse-processing"></div>
+              <span>Processing Cases...</span>
+            </div>
+            <p class="processing-case">{{ currentCase }} ({{ currentCaseIndex }}/{{ totalCases }})</p>
+            <p class="processing-step">{{ stepLabel }}</p>
+            <div class="progress-track">
+              <div class="progress-fill determinate" :style="{ width: progressPercent + '%' }"></div>
+            </div>
+          </template>
+
+          <!-- Phase: error -->
+          <template v-else-if="processingPhase === 'error'">
+            <div class="health-status">
+              <div class="pulse-ring pulse-error"></div>
+              <span>Processing Failed</span>
+            </div>
+            <p class="processing-step error-text">{{ currentStep }}</p>
+          </template>
         </div>
         
       </div>
@@ -50,18 +76,30 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
+import type { ToolConfigStep } from "@/models";
 
-defineProps({
-  show: {
-    type: Boolean,
-    required: true,
-    default: true
-  },
-  attemptCount: {
-    type: Number,
-    required: true,
-    default: 0
-  }
+const STEP_LABELS: Record<ToolConfigStep, string> = {
+  resolving_inputs: "Resolving input files...",
+  copy_nii: "Copying researcher mask...",
+  convert_gltf: "Converting to 3D mesh...",
+  create_validate_json: "Creating validation record...",
+  update_db: "Updating database...",
+};
+
+const props = defineProps({
+  show: { type: Boolean, required: true, default: true },
+  attemptCount: { type: Number, required: true, default: 0 },
+  processingPhase: { type: String as () => 'health_check' | 'processing' | 'error', default: 'health_check' },
+  currentStep: { type: String, default: '' },
+  currentCase: { type: String, default: '' },
+  totalCases: { type: Number, default: 0 },
+  currentCaseIndex: { type: Number, default: 0 },
+  progressPercent: { type: Number, default: 0 },
+});
+
+const stepLabel = computed(() => {
+  return STEP_LABELS[props.currentStep as ToolConfigStep] || props.currentStep;
 });
 </script>
 
@@ -369,16 +407,51 @@ defineProps({
 
 .progress-fill {
   height: 100%;
-  width: 30%;
   background: linear-gradient(90deg, #38bdf8, #818cf8);
   border-radius: 10px;
+}
+
+.progress-fill.indeterminate {
+  width: 30%;
   animation: progressPulse 2s infinite ease-in-out;
+}
+
+.progress-fill.determinate {
+  transition: width 0.4s ease;
 }
 
 @keyframes progressPulse {
   0% { transform: translateX(-100%); }
   50% { transform: translateX(100%); }
   100% { transform: translateX(300%); }
+}
+
+.pulse-processing {
+  background-color: #38bdf8;
+  box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7);
+}
+
+.pulse-error {
+  background-color: #ef4444;
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+}
+
+.processing-case {
+  margin: 0;
+  color: #e2e8f0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.processing-step {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 12px;
+  font-family: monospace;
+}
+
+.error-text {
+  color: #fca5a5;
 }
 
 .health-attempt {

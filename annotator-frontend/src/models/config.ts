@@ -20,6 +20,26 @@ export interface IToolConfigResponse {
     assay_id: number;
 }
 
+export type ToolConfigStep = 'resolving_inputs' | 'copy_nii' | 'convert_gltf' | 'create_validate_json' | 'update_db';
+
+export interface ISSEProgressEvent {
+    step: ToolConfigStep;
+    case: string;
+    total_cases: number;
+    current: number;
+}
+
+export interface ISSECompleteEvent {
+    status: string;
+    assay_id: number;
+}
+
+export interface ISSEErrorEvent {
+    step: string;
+    summary: string;
+    detail: string;
+}
+
 export interface IAuth {
     user_uuid: string;
     assay_uuid: string;

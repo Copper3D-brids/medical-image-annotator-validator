@@ -9,23 +9,35 @@
       </template>
     </LayoutTwoPanels>
 
-    <!-- Backend health check modal -->
-    <ConnectionModal :show="!backendReady" :attemptCount="attemptCount" />
+    <!-- Backend health check / processing modal -->
+    <ConnectionModal
+      :show="showModal"
+      :attemptCount="attemptCount"
+      :processingPhase="processingPhase"
+      :currentStep="currentStep"
+      :currentCase="currentCase"
+      :totalCases="totalCases"
+      :currentCaseIndex="currentCaseIndex"
+      :progressPercent="progressPercent"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onBeforeMount, onUnmounted } from "vue";
+import { ref, computed, nextTick, onBeforeMount, onUnmounted } from "vue";
 import LayoutTwoPanels from "@/components/viewer/LayoutTwoPanels.vue";
 import LeftPanel from "./LeftPanelController.vue";
 import RightPanel from "./RightPanelController.vue";
 import ConnectionModal from "@/components/common/ConnectionModal.vue";
-import { useToolConfig, checkHealth } from "@/plugins/api/index";
+import { useToolConfigSSE, checkHealth } from "@/plugins/api/index";
+import { useNrrdCaseNames } from "@/plugins/api/cases";
 // need to remove this after testing
 import toolConfig from "@/assets/tool_config.json";
 import { useAppConfig } from "@/plugins/hooks/config";
 import { useSegmentationCasesStore } from "@/store/app";
 import { useToast } from "@/composables/useToast";
+import emitter from "@/plugins/custom-emitter";
+import type { ISSEProgressEvent, ISSECompleteEvent, ISSEErrorEvent } from "@/models";
 
 const { setPluginReady } = useSegmentationCasesStore();
 const toast = useToast();
@@ -39,6 +51,37 @@ const backendReady = ref(false);
 const attemptCount = ref(0);
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
+// SSE processing state
+const processingPhase = ref<'health_check' | 'processing' | 'error'>('health_check');
+const currentStep = ref('');
+const currentCase = ref('');
+const totalCases = ref(0);
+const currentCaseIndex = ref(0);
+const progressPercent = ref(0);
+
+const showModal = computed(() => !backendReady.value);
+
+// Step weights for progress calculation within a single case
+const STEP_WEIGHTS: Record<string, number> = {
+  resolving_inputs: 0.1,
+  copy_nii: 0.4,
+  convert_gltf: 0.3,
+  create_validate_json: 0.05,
+  update_db: 0.15,
+};
+const STEP_ORDER = ['resolving_inputs', 'copy_nii', 'convert_gltf', 'create_validate_json', 'update_db'];
+
+function calcProgress(caseIdx: number, total: number, step: string): number {
+  const caseFraction = 1 / total;
+  const completedCases = (caseIdx - 1) * caseFraction;
+  let stepProgress = 0;
+  for (const s of STEP_ORDER) {
+    if (s === step) break;
+    stepProgress += STEP_WEIGHTS[s] || 0;
+  }
+  return Math.round((completedCases + caseFraction * stepProgress) * 100);
+}
+
 function stopPolling() {
   if (pollTimer !== null) {
     clearInterval(pollTimer);
@@ -48,26 +91,65 @@ function stopPolling() {
 
 async function runToolConfig() {
   if (!config) return;
-  useToolConfig(config).then((res) => {
-    if (res.status === "success") {
-      setPluginReady();
-    }
-  }).catch((err) => {
-    const errData = err?.response?.data?.detail;
-    if (errData && typeof errData === "object" && errData.summary) {
-      // Structured error from backend
-      toast.error(errData.summary, 10000);
-      if (errData.detail) {
-        toast.warning(errData.detail, 12000);
+
+  processingPhase.value = 'processing';
+
+  await useToolConfigSSE(config, {
+    onProgress(event: ISSEProgressEvent) {
+      currentStep.value = event.step;
+      currentCase.value = event.case;
+      totalCases.value = event.total_cases;
+      currentCaseIndex.value = event.current;
+      progressPercent.value = calcProgress(event.current, event.total_cases, event.step);
+    },
+    async onComplete(event: ISSECompleteEvent) {
+      if (event.status === "success") {
+        progressPercent.value = 100;
+        setPluginReady();
+
+        // Auto-load first unfinished case
+        await autoLoadFirstUnfinishedCase();
+
+        backendReady.value = true;
       }
-      console.error(`[tool-config] Step ${errData.step}: ${errData.summary}\n${errData.detail}`);
-    } else {
-      // Fallback for unstructured errors
-      const message = typeof errData === "string" ? errData : err?.message ?? "Unknown error";
-      toast.error(`Configuration failed: ${message}`, 8000);
-      console.error("[tool-config] error:", message);
-    }
+    },
+    onError(event: ISSEErrorEvent) {
+      processingPhase.value = 'error';
+      currentStep.value = event.summary;
+      toast.error(event.summary, 10000);
+      if (event.detail) {
+        toast.warning(event.detail, 12000);
+      }
+      console.error(`[tool-config] Step ${event.step}: ${event.summary}\n${event.detail}`);
+    },
   });
+}
+
+async function autoLoadFirstUnfinishedCase() {
+  if (!config) return;
+
+  try {
+    const auth = {
+      user_uuid: config.user_info.uuid,
+      assay_uuid: config.assay_info.uuid,
+    };
+    const casesData = await useNrrdCaseNames(auth);
+
+    if (!casesData?.details?.length) return;
+
+    // Find first case where validate_json.finished === false
+    const firstUnfinished = casesData.details.find((d: any) => {
+      const vj = d.output?.validate_json;
+      return !vj || vj.finished === false;
+    });
+
+    const targetCase = firstUnfinished?.name ?? casesData.names[0];
+
+    await nextTick();
+    emitter.emit("Segementation:CaseSwitched", targetCase);
+  } catch (e) {
+    console.error("[auto-load] Failed to find first unfinished case:", e);
+  }
 }
 
 async function pollHealth() {
@@ -76,7 +158,6 @@ async function pollHealth() {
     const res = await checkHealth();
     if (res.status === "ok") {
       stopPolling();
-      backendReady.value = true;
       runToolConfig();
     }
   } catch {
