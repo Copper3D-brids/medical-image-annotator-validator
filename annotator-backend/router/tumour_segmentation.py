@@ -291,64 +291,6 @@ async def send_single_file(path: str = Query(None)):
         return "No file exists!"
 
 
-@router.post("/api/mask/init-layers")
-async def init_mask(mask_layer: model.MaskInitRequest, db: Session = Depends(get_db)):
-    """
-    Initialize a single mask layer with metadata from frontend.
-    Called when frontend initializes each layer individually.
-
-    Steps:
-    1. Save metadata (dimensions, spacing, origin) to mask_meta_json_path
-    2. Create empty NIfTI file for the specified layer
-    3. Update database sizes
-    """
-    case_output = db.query(CaseOutput).filter(CaseOutput.case_id == mask_layer.caseId).first()  # type: ignore
-    if not case_output:
-        raise HTTPException(status_code=404, detail="CaseOutput not found")
-
-    print(f"Initializing {mask_layer.layerId} for case {mask_layer.caseId}")
-    print(f"Dimensions: {mask_layer.dimensions}")
-    print(f"Spacing: {mask_layer.voxelSpacing}")
-    print(f"Origin: {mask_layer.spaceOrigin}")
-
-    # Step 1: Save metadata to mask_meta_json_path
-    if case_output.mask_meta_json_path:
-        tools.save_mask_meta_json(
-            case_output,
-            dimensions=mask_layer.dimensions,
-            spacing=mask_layer.voxelSpacing if mask_layer.voxelSpacing else [1.0, 1.0, 1.0],
-            origin=mask_layer.spaceOrigin if mask_layer.spaceOrigin else [0.0, 0.0, 0.0]
-        )
-
-    # Step 2: Create empty NIfTI file for clinician_validated_nii (the only editable layer)
-    nii_path = case_output.clinician_validated_nii_path
-
-    if not nii_path:
-        raise HTTPException(status_code=400, detail="clinician_validated_nii path not configured in database")
-
-    # Create the empty NIfTI file
-    file_size = tools.create_nifti_file(
-        file_path=nii_path,
-        dimensions=mask_layer.dimensions,
-        spacing=mask_layer.voxelSpacing if mask_layer.voxelSpacing else [1.0, 1.0, 1.0],
-        origin=mask_layer.spaceOrigin if mask_layer.spaceOrigin else [0.0, 0.0, 0.0]
-    )
-
-    # Update the size in database
-    case_output.clinician_validated_nii_size = file_size
-
-    # Commit changes to database
-    db.commit()
-    db.refresh(case_output)
-
-    return {
-        "success": True,
-        "dimensions": mask_layer.dimensions,
-        "layer_initialized": "clinician_validated_nii",
-        "file_size": file_size
-    }
-
-
 @router.post("/api/mask/replace")
 async def replace_mask(mask_update: model.MaskSliceUpdate, db: Session = Depends(get_db)):
     """

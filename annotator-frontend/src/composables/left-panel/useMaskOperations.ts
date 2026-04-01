@@ -24,7 +24,7 @@ import {
 import { useReplaceMask, useClearMaskMesh, useInitMasks, useSaveMasks, useInitMaskLayers } from "@/plugins/api/index";
 import { switchAnimationStatus } from "@/components/viewer/utils";
 import emitter from "@/plugins/custom-emitter";
-import { useNiftiVoxelData } from "@/plugins/utils";
+import { useNiftiVoxelData, useNiftiVoxelDataFromUrl } from "@/plugins/utils";
 import { useToast } from "@/composables/useToast";
 
 /**
@@ -99,12 +99,11 @@ export function useMaskOperations(deps: IMaskOperationsDeps) {
     };
 
     /**
-     * Phase 4 & 5: Sets mask data from backend (NIfTI or legacy JSON)
+     * Validator 3-layer mask loading:
      *
-     * Priority order:
-     * 1. Try loading NIfTI files (mask_layer*_nii_path)
-     * 2. Fall back to legacy JSON if NIfTI not available
-     * 3. Initialize empty masks if nothing exists
+     * - Layer 1 (Model Predicted): from input URL (read-only, never init)
+     * - Layer 2 (Researcher Manual): from input URL (read-only, never init)
+     * - Layer 3 (Clinician Validated): from output (editable, init if empty)
      */
     const setMaskData = async () => {
         const caseDetail = allCasesDetails.value?.details.find(
@@ -113,77 +112,45 @@ export function useMaskOperations(deps: IMaskOperationsDeps) {
 
         if (!caseDetail) return;
 
-        console.log(nrrdTools.value!.getSpaceOrigin());
+        switchAnimationStatus(loadingContainer.value!, progress.value!, "flex", "Loading mask layers...");
 
-        // Phase 4 Task 4.2: Try loading NIfTI files first
-        const hasLayer1 = Number(caseDetail.output.mask_layer1_nii_size || 0) > 0;
-        const hasLayer2 = Number(caseDetail.output.mask_layer2_nii_size || 0) > 0;
-        const hasLayer3 = Number(caseDetail.output.mask_layer3_nii_size || 0) > 0;
-        const hasLayer4 = Number(caseDetail.output.mask_layer4_nii_size || 0) > 0;
+        try {
+            const layerBuffers: Map<string, Uint8Array> = new Map();
 
-        if (hasLayer1 || hasLayer2 || hasLayer3 || hasLayer4) {
-            // Load NIfTI masks using the new Phase 0 API
-            switchAnimationStatus(loadingContainer.value!, progress.value!, "flex", "Loading NIfTI mask layers...");
-
-            try {
-                const layerBuffers: Map<string, Uint8Array> = new Map();
-
-                // Load layers in order (layer1, layer2, layer3, layer4)
-                if (hasLayer1) {
-                    const voxels = await useNiftiVoxelData(caseDetail.output.mask_layer1_nii_path!);
-                    if (voxels) layerBuffers.set('layer1', voxels);
-                } else {
-                    await sendInitMaskToBackend("layer1");
-                }
-                if (hasLayer2) {
-                    const voxels = await useNiftiVoxelData(caseDetail.output.mask_layer2_nii_path!);
-                    if (voxels) layerBuffers.set('layer2', voxels);
-                } else {
-                    await sendInitMaskToBackend("layer2");
-                }
-                if (hasLayer3) {
-                    const voxels = await useNiftiVoxelData(caseDetail.output.mask_layer3_nii_path!);
-                    if (voxels) layerBuffers.set('layer3', voxels);
-                } else {
-                    await sendInitMaskToBackend("layer3");
-                }
-                if (hasLayer4) {
-                    const voxels = await useNiftiVoxelData(caseDetail.output.mask_layer4_nii_path!);
-                    if (voxels) layerBuffers.set('layer4', voxels);
-                } else {
-                    await sendInitMaskToBackend("layer4");
-                }
-
-                if (layerBuffers.size > 0) {
-                    nrrdTools.value!.setMasksFromNIfTI(layerBuffers, loadBarMain.value);
-                }
-
-                toast.success("Mask NIfTI loaded successfully");
-            } catch (e) {
-                console.error("Failed to load mask NIfTI:", e);
-                toast.error(`Failed to load mask NIfTI: ${(e as Error).message}`);
+            // Layer 1 (Model Predicted) — read-only input from MinIO proxy
+            if (caseDetail.input.model_predicted_nii) {
+                const voxels = await useNiftiVoxelDataFromUrl(caseDetail.input.model_predicted_nii);
+                if (voxels) layerBuffers.set('layer1', voxels);
             }
 
-            setTimeout(() => {
-                switchAnimationStatus(loadingContainer.value!, progress.value!, "none");
-            }, 1000);
+            // Layer 2 (Researcher Manual) — read-only input from MinIO proxy
+            if (caseDetail.input.researcher_manual_nii) {
+                const voxels = await useNiftiVoxelDataFromUrl(caseDetail.input.researcher_manual_nii);
+                if (voxels) layerBuffers.set('layer2', voxels);
+            }
 
-        } else {
-            // Phase 5 Task 5.1: No data exists, initialize empty
-            try {
-                await sendInitMaskToBackend("layer1");
-                await sendInitMaskToBackend("layer2");
+            // Layer 3 (Clinician Validated) — editable output, init if no data
+            const hasLayer3 = Number(caseDetail.output.clinician_validated_nii_size || 0) > 0;
+            if (hasLayer3) {
+                const voxels = await useNiftiVoxelData(caseDetail.output.clinician_validated_nii_path!);
+                if (voxels) layerBuffers.set('layer3', voxels);
+            } else {
                 await sendInitMaskToBackend("layer3");
-                await sendInitMaskToBackend("layer4");
-                toast.success("Mask NIfTI initialized successfully");
-            } catch (e) {
-                console.error("Failed to initialize mask NIfTI:", e);
-                toast.error(`Failed to initialize mask NIfTI: ${(e as Error).message}`);
             }
-            setTimeout(() => {
-                switchAnimationStatus(loadingContainer.value!, progress.value!, "none");
-            }, 1000);
+
+            if (layerBuffers.size > 0) {
+                nrrdTools.value!.setMasksFromNIfTI(layerBuffers, loadBarMain.value);
+            }
+
+            toast.success("Mask layers loaded successfully");
+        } catch (e) {
+            console.error("Failed to load mask layers:", e);
+            toast.error(`Failed to load mask layers: ${(e as Error).message}`);
         }
+
+        setTimeout(() => {
+            switchAnimationStatus(loadingContainer.value!, progress.value!, "none");
+        }, 1000);
     };
 
     /**
@@ -233,9 +200,9 @@ export function useMaskOperations(deps: IMaskOperationsDeps) {
      * The conversion runs as a background task on the backend.
      *
      * @param flag - Whether to proceed with save
-     * @param layerId - Layer to convert ('layer1', 'layer2', or 'layer3'), defaults to 'layer1'
+     * @param layerId - Layer to convert ('layer1', 'layer2', or 'layer3'), defaults to 'layer3'
      */
-    const onSaveMask = async (flag: boolean, layerId: 'layer1' | 'layer2' | 'layer3' | 'layer4' = 'layer1') => {
+    const onSaveMask = async (flag: boolean, layerId: 'layer1' | 'layer2' | 'layer3' = 'layer3') => {
         if (flag) {
             // Skip expensive hasLayerData check to avoid UI blocking
             // Backend will handle empty data gracefully

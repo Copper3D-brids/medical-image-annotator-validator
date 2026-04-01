@@ -212,6 +212,54 @@ export async function useNiftiVoxelData(niiPath: string): Promise<Uint8Array | n
 }
 
 /**
+ * Read NIfTI voxel data from an absolute URL (e.g. file proxy endpoint).
+ *
+ * Used for loading input masks (model_predicted_nii, researcher_manual_nii)
+ * that are served via the `/api/files/{case_id}/{file_type}` proxy.
+ *
+ * @param url - Absolute URL to fetch the NIfTI file from
+ * @returns Promise<Uint8Array | null> - Raw voxel bytes, or null if failed
+ */
+export async function useNiftiVoxelDataFromUrl(url: string): Promise<Uint8Array | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.warn(`Failed to fetch NIfTI from URL (${response.status}): ${url}`);
+      return null;
+    }
+
+    let arrayBuffer = await response.arrayBuffer();
+
+    if (nifti.isCompressed(arrayBuffer)) {
+      arrayBuffer = nifti.decompress(arrayBuffer);
+    }
+
+    if (!nifti.isNIFTI(arrayBuffer)) {
+      console.error(`Invalid NIfTI file from URL: ${url}`);
+      return null;
+    }
+
+    const header = nifti.readHeader(arrayBuffer);
+    if (!header) {
+      console.error(`Failed to read NIfTI header from URL: ${url}`);
+      return null;
+    }
+
+    const imageData = nifti.readImage(header, arrayBuffer);
+    if (!imageData) {
+      console.error(`Failed to read NIfTI image data from URL: ${url}`);
+      return null;
+    }
+
+    const dtCode = (header as nifti.NIFTI1Header | nifti.NIFTI2Header).datatypeCode;
+    return niftiTypedArrayToUint8(imageData, dtCode, url);
+  } catch (error) {
+    console.error(`Error reading NIfTI from URL ${url}:`, error);
+    return null;
+  }
+}
+
+/**
  * Convert Blob to ArrayBuffer
  *
  * @param blob - Blob to convert
