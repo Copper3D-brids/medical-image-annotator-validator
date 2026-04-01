@@ -24,6 +24,8 @@ export interface LayerConfig {
     disabledChannels?: number[];
     /** Default opacity for this layer (0.1 - 1.0). Defaults to 1.0 if not set. */
     defaultOpacity?: number;
+    /** If true, layer is view-only and cannot be selected for editing */
+    readOnly?: boolean;
 }
 
 export interface ChannelConfig {
@@ -37,16 +39,10 @@ export interface ChannelConfig {
 /**
  * Layer configurations
  */
-// export const LAYER_CONFIGS: LayerConfig[] = [
-//     { id: 'layer1', name: 'Layer 1' },  // Green
-//     { id: 'layer2', name: 'Layer 2', disabledChannels: [2, 3, 4, 5, 6, 7, 8] },  // Blue
-//     { id: 'layer3', name: 'Layer 3', disable: true },  // Orange
-// ];
 export const LAYER_CONFIGS: LayerConfig[] = [
-    { id: 'layer1', name: 'Layer 1' },
-    { id: 'layer2', name: 'Layer 2', defaultOpacity: 0.8 },
-    { id: 'layer3', name: 'Layer 3' },
-    { id: 'layer4', name: 'Layer 4' },
+    { id: 'layer1', name: 'Model Predicted', readOnly: true },
+    { id: 'layer2', name: 'Researcher Manual', readOnly: true, defaultOpacity: 0.8 },
+    { id: 'layer3', name: 'Clinician Validated' },
 ];
 
 /**
@@ -70,8 +66,8 @@ export function useLayerChannel(deps: ILayerChannelDeps) {
 
     // ===== Reactive State =====
 
-    /** Currently active layer */
-    const activeLayer = ref<Copper.LayerId>('layer1');
+    /** Currently active layer (default to layer3 — the editable clinician layer) */
+    const activeLayer = ref<Copper.LayerId>('layer3');
 
     /** Currently active channel */
     const activeChannel = ref<Copper.ChannelValue>(1 as Copper.ChannelValue);

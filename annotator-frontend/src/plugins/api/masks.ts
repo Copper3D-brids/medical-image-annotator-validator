@@ -28,14 +28,14 @@ export async function useReplaceMask(body: IReplaceMask) {
 }
 
 /**
- * Save mask - Convert NIfTI mask layer to OBJ 3D mesh
+ * Save mask - Convert NIfTI mask layer to GLTF 3D mesh
  * @param case_id - The case ID
- * @param layer_id - The layer to convert ('layer1', 'layer2', or 'layer3'), defaults to 'layer1'
+ * @param layer_id - The layer to convert ('layer1', 'layer2', or 'layer3'), defaults to 'layer3'
  * @returns Promise with success status
  */
 export async function useSaveMasks(
     case_id: string | number,
-    layer_id: 'layer1' | 'layer2' | 'layer3' | 'layer4' = 'layer1'
+    layer_id: 'layer1' | 'layer2' | 'layer3' = 'layer3'
 ) {
     const result = http.get<{ success: boolean; message: string; layer_id: string }>(
         "/mask/save-gltf",
