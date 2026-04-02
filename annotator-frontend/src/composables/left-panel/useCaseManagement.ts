@@ -225,6 +225,9 @@ export function useCaseManagement(deps: ICaseManagementDeps) {
             register: isShowRegisterImage,
         });
 
+        // Trigger mask reloading for the newly selected origin/register slices
+        emitter.emit("Segmentation:SetMaskData");
+
         tellAllRelevantComponentsImagesLoaded();
         switchAnimationStatus(loadingContainer.value!, progress.value!, "none");
     }

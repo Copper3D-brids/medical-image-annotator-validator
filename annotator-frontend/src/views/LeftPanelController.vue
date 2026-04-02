@@ -175,6 +175,7 @@ const emitterHandlers = {
     sliceNav.onContrastSelected(result.contrastState, result.order);
   },
   onRegisterImageChanged: caseManagement.onRegistedStateChanged,
+  onSetMaskData: maskOps.setMaskData,
   onSwitchAnimationStatus: (payload: { status: "flex" | "none"; text?: string }) => {
     if (loadingContainer.value && progress.value) {
       switchAnimationStatus(loadingContainer.value, progress.value, payload.status, payload.text);
