@@ -7,7 +7,6 @@ COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile
 
 COPY . .
-COPY .env.production .env
 RUN yarn build
 
 # Stage 2: Serve with nginx
