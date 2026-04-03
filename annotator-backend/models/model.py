@@ -15,6 +15,13 @@ class MaskInitRequest(BaseModel):
     voxelSpacing: Optional[List[float]] = None
     spaceOrigin: Optional[List[float]] = None
 
+class MaskMetaUpdateRequest(BaseModel):
+    """Request model for updating mask_meta_json from NRRD image metadata"""
+    caseId: Union[int, str]
+    dimensions: List[int]  # [width, height, depth]
+    spacing: List[float]   # [sx, sy, sz]
+    origin: List[float]    # [ox, oy, oz]
+
 
 class Mask(BaseModel):
     caseId: Union[int, str]

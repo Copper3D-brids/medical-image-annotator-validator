@@ -624,6 +624,15 @@ async def init_mask_layers(request: model.MaskInitRequest, db: Session = Depends
     # Create empty volume
     empty_data = np.zeros((width, height, depth), dtype=np.uint8)
 
+    # Save metadata (dimensions, spacing, origin) to mask_meta_json
+    if case_output.mask_meta_json_path:
+        tools.save_mask_meta_json(
+            case_output,
+            dimensions=[width, height, depth],
+            spacing=spacing,
+            origin=origin
+        )
+
     # Initialize clinician_validated_nii (the only editable layer)
     layer_path = case_output.clinician_validated_nii_path
     if layer_path:
@@ -643,6 +652,32 @@ async def init_mask_layers(request: model.MaskInitRequest, db: Session = Depends
         "dimensions": request.dimensions,
         "layers_initialized": ["clinician_validated_nii"]
     }
+
+
+@router.post("/api/mask/update-meta")
+async def update_mask_meta(request: model.MaskMetaUpdateRequest, db: Session = Depends(get_db)):
+    """
+    Update mask_meta_json with NRRD image metadata (dimensions, spacing, origin).
+    Called by frontend after contrast_pre NRRD image is loaded.
+    """
+    case_output = db.query(CaseOutput).filter(CaseOutput.case_id == request.caseId).first()  # type: ignore
+    if not case_output:
+        raise HTTPException(status_code=404, detail="CaseOutput not found")
+
+    if not case_output.mask_meta_json_path:
+        raise HTTPException(status_code=400, detail="mask_meta_json_path not configured")
+
+    tools.save_mask_meta_json(
+        case_output,
+        dimensions=request.dimensions,
+        spacing=request.spacing,
+        origin=request.origin
+    )
+
+    db.commit()
+    db.refresh(case_output)
+
+    return {"success": True}
 
 
 # ---------------------------------------------------------------------------

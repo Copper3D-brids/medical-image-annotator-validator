@@ -147,17 +147,17 @@ The frontend determines API base URL via `src/plugins/api/getBaseUrl.ts`:
 | `src/components/segmentation/OperationCtl.vue` | Main tool buttons (Paint, Erase, Smooth, Sphere) |
 | `src/components/segmentation/LayerChannelSelector.vue` | Multi-layer/channel UI |
 | `src/composables/left-panel/useCaseManagement.ts` | Case load/save logic |
-| `src/composables/left-panel/useMaskOperations.ts` | Undo/redo + mask operations |
+| `src/composables/left-panel/useMaskOperations.ts` | Undo/redo + mask operations + mask metadata update |
 | `src/composables/right-panel/useWebSocketSync.ts` | WebSocket synchronization |
 | `src/plugins/api/getBaseUrl.ts` | API/WS base URL resolution (dev / prod / plugin) |
-| `src/plugins/api/client.ts` | Axios HTTP client with baseURL from `getApiBaseUrl()` |
+| `src/plugins/api/client.ts` | Axios HTTP client with baseURL from `getApiBaseUrl()`. All API calls must use relative paths (e.g. `/download_sds`) via the `http` client or `getApiBaseUrl()` for raw `fetch` — never hardcode `/api/...` to avoid double-prefix bugs |
 
 ### Backend
 
 | Path | Purpose |
 |------|---------|
 | `main.py` | FastAPI app, CORS, `/api/tool-config`, `/api/generate_sds` |
-| `router/tumour_segmentation.py` | Main API routes: cases, files proxy, validation, download, WebSocket |
+| `router/tumour_segmentation.py` | Main API routes: cases, files proxy, validation, mask metadata update, download, WebSocket |
 | `models/db_model.py` | SQLAlchemy ORM (User, Assay, Case, CaseInput, CaseOutput) |
 | `services/minio_service.py` | MinIO S3 validation and path resolution |
 | `utils/convert.py` | Format conversion (NIfTI to OBJ/GLB) |
@@ -176,14 +176,15 @@ The frontend determines API base URL via `src/plugins/api/getBaseUrl.ts`:
 
 ## Validation Workflow
 
-1. **Tool Config** (`POST /api/tool-config`): frontend sends user/assay UUIDs + dataset/cohort names. Backend validates MinIO paths, resolves input URLs (including `model_predicted_nii` and `researcher_manual_nii`), creates DB records, returns resolved URLs via SSE.
-2. **Load Case**: frontend loads multi-contrast images + AI prediction + researcher mask via proxied file URLs (`/api/files/{case_id}/{file_type}`).
-3. **Review & Annotate**: clinician reviews the AI-predicted and researcher-drawn masks, optionally corrects annotations using drawing tools.
-4. **Validate** (`POST /api/validate/{case_id}`): clinician marks the case as one of:
+1. **Tool Config** (`POST /api/tool-config`): frontend sends user/assay UUIDs + dataset/cohort names. Backend validates MinIO paths, resolves input URLs (including `model_predicted_nii` and `researcher_manual_nii`), creates DB records, auto-copies `researcher_manual_nii` → `clinician_validated_nii`, returns resolved URLs via SSE.
+2. **Load Case**: frontend loads multi-contrast NRRD images + AI prediction + researcher mask via proxied file URLs (`/api/files/{case_id}/{file_type}`).
+3. **Update Mask Metadata** (`POST /api/mask/update-meta`): after NRRD images load, frontend reads image dimensions/spacing/origin from copper3d and sends to backend, which writes `mask_meta_json.json`. This metadata comes from the contrast_pre/registration_pre NRRD (not from NIfTI).
+4. **Review & Annotate**: clinician reviews the AI-predicted and researcher-drawn masks, optionally corrects annotations using drawing tools.
+5. **Validate** (`POST /api/validate/{case_id}`): clinician marks the case as one of:
    - `no_need_for_correction` — AI prediction is acceptable
    - `corrected` — clinician made corrections
    - `reject` — case is rejected
-5. **Export**: masks saved as NIfTI, converted to OBJ/GLB, packaged as SPARC SDS dataset.
+6. **Export**: masks saved as NIfTI, converted to OBJ/GLB, packaged as SPARC SDS dataset.
 
 ## Supported Medical Image Formats
 
@@ -196,3 +197,4 @@ NRRD, NIfTI (.nii / .nii.gz), DICOM, VTK, OBJ, GLB, GLTF
 - Backend serves on **port 8082** internally.
 - There is **no `.env.production`** file. Production builds rely on relative paths (`/api`) resolved at runtime by the browser. Only `.env` exists for local dev with `VITE_PLUGIN_API_PORT=8082`.
 - The standalone `docker-compose.yml` (project root) includes its own MinIO instance. The plugin `docker-compose.yml` (`annotator-backend/docker-compose.yml`) uses the portal's shared MinIO via the `digitaltwins` network.
+- **API URL convention**: `client.ts` sets `axios.defaults.baseURL = getApiBaseUrl()` (resolves to `/api` in production). All API calls via the `http` client must use relative paths **without** `/api` prefix (e.g. `/download_sds`, not `/api/download_sds`). For raw `fetch` calls, use `getApiBaseUrl()` to build the full URL. Never hardcode `/api/...` — it causes double-prefix bugs (`/api/api/...`) and breaks dev/plugin modes.
