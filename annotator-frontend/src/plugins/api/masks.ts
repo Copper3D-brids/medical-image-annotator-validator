@@ -1,4 +1,5 @@
 import http from "./client";
+import { getApiBaseUrl } from "./getBaseUrl";
 import {
     IExportMasks,
     IReplaceMask,
@@ -62,7 +63,7 @@ export async function useGetMaskRaw(
     layerId: 'layer1' | 'layer2' | 'layer3'
 ): Promise<ArrayBuffer | null> {
     try {
-        const response = await fetch(`/api/mask/raw/${caseId}/${layerId}`, {
+        const response = await fetch(`${getApiBaseUrl()}/mask/raw/${caseId}/${layerId}`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/octet-stream',
@@ -97,6 +98,30 @@ export async function useApplyMaskDelta(
         return result;
     } catch (error) {
         console.error('Error applying mask delta:', error);
+        return null;
+    }
+}
+
+/**
+ * Update mask_meta_json with NRRD image metadata (dimensions, spacing, origin).
+ * Called after contrast_pre NRRD image is loaded in the viewer.
+ */
+export async function useUpdateMaskMeta(
+    caseId: string | number,
+    dimensions: number[],
+    spacing: number[],
+    origin: number[]
+): Promise<{ success: boolean } | null> {
+    try {
+        const result = await http.post<{ success: boolean }>("/mask/update-meta", {
+            caseId,
+            dimensions,
+            spacing,
+            origin,
+        });
+        return result;
+    } catch (error) {
+        console.error('Error updating mask meta:', error);
         return null;
     }
 }

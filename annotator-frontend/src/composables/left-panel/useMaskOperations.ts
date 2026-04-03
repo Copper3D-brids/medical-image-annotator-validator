@@ -21,7 +21,7 @@ import {
     INrrdCaseNames,
     ICaseUrls,
 } from "@/models";
-import { useReplaceMask, useClearMaskMesh, useInitMasks, useSaveMasks, useInitMaskLayers } from "@/plugins/api/index";
+import { useReplaceMask, useClearMaskMesh, useInitMasks, useSaveMasks, useInitMaskLayers, useUpdateMaskMeta } from "@/plugins/api/index";
 import { switchAnimationStatus } from "@/components/viewer/utils";
 import emitter from "@/plugins/custom-emitter";
 import { useNiftiVoxelData, useNiftiVoxelDataFromUrl } from "@/plugins/utils";
@@ -140,6 +140,19 @@ export function useMaskOperations(deps: IMaskOperationsDeps) {
 
             if (layerBuffers.size > 0) {
                 nrrdTools.value!.setMasksFromNIfTI(layerBuffers, loadBarMain.value);
+            }
+
+            // Update mask_meta_json with NRRD image metadata
+            const dimensions = nrrdTools.value!.getCurrentImageDimension();
+            const spacing = nrrdTools.value!.getVoxelSpacing();
+            const origin = nrrdTools.value!.getSpaceOrigin();
+            if (dimensions.length === 3) {
+                await useUpdateMaskMeta(
+                    caseDetail.id,
+                    dimensions,
+                    spacing ?? [1.0, 1.0, 1.0],
+                    origin ?? [0.0, 0.0, 0.0]
+                );
             }
 
             toast.success("Mask layers loaded successfully");
