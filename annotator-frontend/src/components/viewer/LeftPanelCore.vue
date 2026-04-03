@@ -200,8 +200,8 @@ function initCopper() {
         }
     );
     
-    // setup nrrdTools with 4 layers for segmentation masks
-    nrrdTools = new Copper.NrrdTools(canvasContainer.value as HTMLDivElement, {layers: ["layer1", "layer2", "layer3", "layer4"] });
+    // setup nrrdTools with 3 layers: Model Predicted, Researcher Manual, Clinician Validated
+    nrrdTools = new Copper.NrrdTools(canvasContainer.value as HTMLDivElement, {layers: ["layer1", "layer2", "layer3"] });
     // nrrdTools = new Copper.NrrdTools(canvasContainer.value as HTMLDivElement);
     nrrdTools.setDisplaySliceIndexPanel(
         sliceIndexContainer.value as HTMLDivElement

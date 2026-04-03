@@ -4,19 +4,19 @@
   },
   "assay_info": {
     "uuid": "assay-001",
-    "name": "test-segmentation-app",
+    "name": "annotation-app",
     "cohorts": [
       "sub-1",
-      "sub-2",
-      "sub-3"
+      "sub-2"
     ],
     "datasets": [
-      "workdir"
+      "workdir_demo",
+      "mask-nii-sds"
     ]
   },
   "system": {
     "minio": {
-      "public_path": "http://localhost:9000/workflows/"
+      "base_url": "http://localhost:9000/measurements/"
     }
   }
 }

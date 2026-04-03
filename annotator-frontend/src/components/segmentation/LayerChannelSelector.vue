@@ -23,7 +23,8 @@
           :class="{
             'active': activeLayer === layer.id,
             'is-hidden': !layerVisibility[layer.id],
-            'is-disabled': isLayerDisabled(layer.id)
+            'is-disabled': isLayerDisabled(layer.id),
+            'is-readonly': layer.readOnly
           }"
         >
           <!-- Visibility Toggle (Left) -->
@@ -42,6 +43,7 @@
             @click="onSelectLayer(layer.id)"
           >
             <span class="layer-name">{{ layer.name }}</span>
+            <v-icon v-if="layer.readOnly" size="12" class="readonly-icon">mdi-lock-outline</v-icon>
             <span v-if="!layerVisibility[layer.id]" class="status-text">(Hidden)</span>
           </div>
         </div>
@@ -195,17 +197,21 @@ const getVisIconColor = (val: number) => {
 
 // ===== Event Handlers =====
 
+function isReadOnly(layerId: Copper.LayerId): boolean {
+  return LAYER_CONFIGS.find(l => l.id === layerId)?.readOnly === true;
+}
+
 function onSelectLayer(layerId: Copper.LayerId): void {
   if (isLayerDisabled(layerId)) return;
-  if (!layerVisibility.value[layerId]) {
-    return;
-  }
+  if (isReadOnly(layerId)) return;
+  if (!layerVisibility.value[layerId]) return;
   setActiveLayer(layerId);
   emitter.emit("LayerChannel:ActiveChanged", { layerId, channel: activeChannel.value });
 }
 
 function onSelectChannel(channel: Copper.ChannelValue): void {
   if (isChannelDisabled(channel)) return;
+  if (isReadOnly(activeLayer.value)) return;
   setActiveChannel(channel);
   emitter.emit("LayerChannel:ActiveChanged", { layerId: activeLayer.value, channel });
 }
@@ -231,9 +237,15 @@ const emitterOnFinishLoadAllCaseImages = () => {
   enableControls();
   syncFromManager();
 
-  // Set layer2 channel1 to gray
-  nrrdTools.value?.setChannelColor('layer2', 1 as Copper.ChannelValue, { r: 128, g: 128, b: 128, a: 255 });
+  // Set per-layer Channel 1 colors
+  nrrdTools.value?.setChannelColor('layer1', 1 as Copper.ChannelValue, { r: 168, g: 85, b: 247, a: 255 }); // Purple
+  nrrdTools.value?.setChannelColor('layer2', 1 as Copper.ChannelValue, { r: 255, g: 140, b: 0, a: 255 });   // Orange
+  // Layer 3 Ch1: keep default (Emerald Green)
   refreshChannelColors();
+
+  // Default active state: Layer 3 (Clinician Validated), Channel 1
+  setActiveLayer('layer3');
+  setActiveChannel(1 as Copper.ChannelValue);
 };
 
 const emitterOnCaseSwitched = () => {
@@ -343,6 +355,15 @@ onUnmounted(() => {
     opacity: 0.5;
     filter: grayscale(1);
     border-style: dashed;
+}
+
+.layer-item.is-readonly .layer-select-area {
+    cursor: default;
+}
+
+.readonly-icon {
+    opacity: 0.5;
+    margin-left: 4px;
 }
 
 .layer-item.is-disabled .layer-vis-btn {

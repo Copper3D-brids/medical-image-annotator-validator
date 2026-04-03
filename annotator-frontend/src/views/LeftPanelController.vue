@@ -175,6 +175,7 @@ const emitterHandlers = {
     sliceNav.onContrastSelected(result.contrastState, result.order);
   },
   onRegisterImageChanged: caseManagement.onRegistedStateChanged,
+  onSetMaskData: maskOps.setMaskData,
   onSwitchAnimationStatus: (payload: { status: "flex" | "none"; text?: string }) => {
     if (loadingContainer.value && progress.value) {
       switchAnimationStatus(loadingContainer.value, progress.value, payload.status, payload.text);
@@ -253,13 +254,16 @@ const handleAllImagesLoaded = async (res: IToolAfterLoadImagesResponse) => {
   sliceNav.updateNavigationAfterLoad();
 
 
-  // Build contrast state
+  // Build contrast state from actual input data (only non-null contrast fields)
   const selectedState: TContrastSelected = {};
-  for (let i = 0; i < res.allSlices.length; i++) {
-    if (i === 0) {
-      selectedState["pre"] = true;
-    } else {
-      selectedState["contrast" + i] = true;
+  const input = caseManagement.currentCaseDetail.value?.input;
+  if (input) {
+    const suffixes = ["pre", "1", "2", "3", "4"] as const;
+    for (const suffix of suffixes) {
+      const key = `contrast_${suffix}` as keyof typeof input;
+      if (input[key]) {
+        selectedState[`contrast_${suffix}`] = true;
+      }
     }
   }
 

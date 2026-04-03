@@ -1,24 +1,96 @@
-import requests
 import pandas as pd
 import io
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from typing import List, Dict
+from minio import Minio
+from minio.error import S3Error
 from utils.setup import Config
 
+
+class MinIOValidationError(Exception):
+    """Structured error for MinIO validation failures."""
+    def __init__(self, step: str, summary: str, detail: str):
+        self.step = step
+        self.summary = summary
+        self.detail = detail
+        super().__init__(summary)
+
+
 class MinIOService:
-    def validate_public_path(self, public_path: str):
-        if not public_path.startswith("http"):
-            raise ValueError(f"Invalid MinIO public path: {public_path}")
+    def __init__(self):
+        self._client = None  # Lazy init
+
+    @property
+    def client(self) -> Minio:
+        if self._client is None:
+            self._client = Minio(
+                endpoint=Config.MINIO_ENDPOINT,
+                access_key=Config.MINIO_ACCESS_KEY,
+                secret_key=Config.MINIO_SECRET_KEY,
+                secure=Config.MINIO_SECURE,
+            )
+        return self._client
+
+    def validate_base_url(self, base_url: str):
+        if not base_url.startswith("http"):
+            raise MinIOValidationError(
+                step="1.1",
+                summary=f"Invalid MinIO base URL: '{base_url}'",
+                detail=f"URL must start with 'http' or 'https'. Received: '{base_url}'"
+            )
+
+    def _extract_bucket_and_path(self, full_url: str) -> tuple[str, str]:
+        """
+        Extract (bucket, object_path) from a full MinIO URL.
+        Example:
+            full_url = "http://minio:9000/measurements/primary/sub1/sample1/file.nrrd"
+            → ("measurements", "primary/sub1/sample1/file.nrrd")
+        Works with any bucket name — no MINIO_BUCKET config needed.
+        """
+        parsed = urlparse(full_url)
+        # parsed.path = "/measurements/primary/sub1/sample1/file.nrrd"
+        parts = parsed.path.lstrip('/').split('/', 1)
+        if len(parts) < 2:
+            raise ValueError(f"Cannot extract bucket/path from URL: {full_url}")
+        return parts[0], parts[1]  # ("measurements", "primary/.../file.nrrd")
 
     def fetch_excel(self, url: str) -> pd.DataFrame:
+        """Fetch Excel file from MinIO via SDK (supports private bucket)."""
         try:
-            print(f"Fetching {url}")
-            response = requests.get(url)
-            response.raise_for_status()
-            # Suppress default index to ensure we strictly check columns
-            return pd.read_excel(io.BytesIO(response.content))
+            bucket, object_path = self._extract_bucket_and_path(url)
+            print(f"  [MinIO] Fetching: bucket='{bucket}', path='{object_path}'")
+            response = self.client.get_object(bucket, object_path)
+            data = response.read()
+            response.close()
+            response.release_conn()
+            return pd.read_excel(io.BytesIO(data))
+        except S3Error as e:
+            if e.code == "NoSuchBucket":
+                bucket, _ = self._extract_bucket_and_path(url)
+                raise MinIOValidationError(
+                    step="minio",
+                    summary=f"MinIO bucket '{bucket}' does not exist",
+                    detail=f"Create the '{bucket}' bucket in MinIO and upload your dataset files."
+                )
+            elif e.code == "NoSuchKey":
+                _, object_path = self._extract_bucket_and_path(url)
+                raise MinIOValidationError(
+                    step="minio",
+                    summary=f"File not found in MinIO: {object_path}",
+                    detail=f"The file '{object_path}' does not exist. Please upload the required metadata files to MinIO."
+                )
+            else:
+                raise MinIOValidationError(
+                    step="minio",
+                    summary=f"MinIO error: {e.code}",
+                    detail=f"URL: {url}, Error: {e}"
+                )
         except Exception as e:
-            raise ValueError(f"Failed to fetch or parse {url}: {e}")
+            raise MinIOValidationError(
+                step="minio",
+                summary=f"Cannot connect to MinIO or read file",
+                detail=f"URL: {url}, Error: {type(e).__name__}: {e}"
+            )
 
     def validate_and_resolve_inputs(
         self,
@@ -39,12 +111,14 @@ class MinIOService:
         ds_meta = {}
 
         # 1.2 Validate datasets exist (by fetching metadata)
+        print(f"[Step 1.2] Validating {len(datasets)} dataset(s): {datasets}")
         for ds in datasets:
             ds_url = urljoin(public_path, f"{ds}/")
             subjects_url = urljoin(ds_url, Config.SUBJECTS_METADATA_PATH)
             samples_url = urljoin(ds_url, Config.SAMPLES_METADATA_PATH)
             manifest_url = urljoin(ds_url, Config.METADATA_PATH)
 
+            print(f"  Dataset '{ds}': expecting metadata at {ds_url}")
             try:
                 ds_meta[ds] = {
                     "subjects": self.fetch_excel(subjects_url),
@@ -52,27 +126,46 @@ class MinIOService:
                     "manifest": self.fetch_excel(manifest_url),
                     "url": ds_url
                 }
-            except ValueError as e:
-                # If we can't fetch metadata, assume dataset doesn't exist or is invalid
-                raise ValueError(f"Dataset validation failed for '{ds}': {e}")
+                print(f"  Dataset '{ds}': OK")
+            except MinIOValidationError:
+                raise  # Already structured, pass through
+            except Exception as e:
+                raise MinIOValidationError(
+                    step="1.2",
+                    summary=f"Dataset '{ds}' metadata files missing in MinIO",
+                    detail=(
+                        f"Cannot read metadata for dataset '{ds}'. "
+                        f"Expected files:\n"
+                        f"  - {subjects_url}\n"
+                        f"  - {samples_url}\n"
+                        f"  - {manifest_url}\n"
+                        f"Error: {e}"
+                    )
+                )
 
         # 1.3 Verify cohorts exist in ALL datasets' subjects.xlsx
+        print(f"[Step 1.3] Verifying {len(cohorts)} cohort(s) in subjects.xlsx: {cohorts}")
         for ds_name, meta in ds_meta.items():
             subjects_df = meta['subjects']
-            # Normalize column names just in case, but assume standard 'subject id'
-            # Check if 'subject id' col exists
             subject_col = next((c for c in subjects_df.columns if c.lower() == 'subject id'), None)
             if not subject_col:
-                raise ValueError(f"Dataset '{ds_name}' subjects.xlsx is missing 'subject id' column.")
-            
+                raise MinIOValidationError(
+                    step="1.3",
+                    summary=f"Dataset '{ds_name}': subjects.xlsx missing 'Subject ID' column",
+                    detail=f"Found columns: {list(subjects_df.columns)}. Please add a 'Subject ID' column."
+                )
+
             existing_subjects = set(subjects_df[subject_col].astype(str).values)
-            print(existing_subjects)
+            print(f"  Dataset '{ds_name}': found {len(existing_subjects)} subject(s) in subjects.xlsx")
             for cohort in cohorts:
                 if cohort not in existing_subjects:
-                    raise ValueError(f"Cohort '{cohort}' not found in dataset '{ds_name}'.")
+                    raise MinIOValidationError(
+                        step="1.3",
+                        summary=f"Cohort '{cohort}' not found in dataset '{ds_name}'",
+                        detail=f"Available subjects: {sorted(existing_subjects)}"
+                    )
 
         # 1.4 & Resolve Inputs
-        # "Map inputs... inputs don't need to be in every dataset, but must find all inputs for all cohorts"
         resolved_paths = {cohort: {} for cohort in cohorts}
 
         for cohort in cohorts:
@@ -81,64 +174,49 @@ class MinIOService:
                 for ds_name, meta in ds_meta.items():
                     samples_df = meta['samples']
                     manifest_df = meta['manifest']
-                    
+
                     # Find columns
                     sample_subj_col = next((c for c in samples_df.columns if c.lower() == 'subject id'), None)
                     sample_type_col = next((c for c in samples_df.columns if c.lower() == 'sample type'), None)
                     sample_id_col = next((c for c in samples_df.columns if c.lower() == 'sample id'), None)
 
                     if not (sample_subj_col and sample_type_col and sample_id_col):
-                        continue # Malformed samples.xlsx
+                        continue  # Malformed samples.xlsx
 
                     # Filter samples for this cohort + input type
                     match = samples_df[
-                        (samples_df[sample_subj_col].astype(str) == cohort) & 
+                        (samples_df[sample_subj_col].astype(str) == cohort) &
                         (samples_df[sample_type_col] == inp_type)
                     ]
 
-
                     if not match.empty:
-                        # Found sample(s) in samples.xlsx
-                        # We need to find the corresponding file in manifest.xlsx
-                        # Logic: Construct "primary/{subject_id}/{sample_id}" and check if it exists in any manifest filename
-                        
                         man_filename_col = next((c for c in manifest_df.columns if c.lower() in ['filename', 'file name']), None)
                         if not man_filename_col:
-                            continue # Malformed manifest
-                        
-                        # Iterate over found samples
+                            continue  # Malformed manifest
+
                         for _, row in match.iterrows():
                             subj_id_val = str(row[sample_subj_col])
                             sample_id_val = str(row[sample_id_col])
-                            
-                            # Construct search string: primary/subject_id/sample_id
-                            # Note: Ensure separators are correct (forward slash usually for S3/MinIO/SDS paths)
+
                             search_str = f"primary/{subj_id_val}/{sample_id_val}"
-                            
-                            # Filter manifest: Check if filename contains the search_str
-                            # We assume manifest filenames are strings
+
                             file_match = manifest_df[
                                 manifest_df[man_filename_col].astype(str).str.contains(search_str, regex=False)
                             ]
-                            
-                            if not file_match.empty:
-                                # Found the file! match the first one
-                                relative_path = file_match.iloc[0][man_filename_col]
-                                
-                                # Construct full path
-                                full_url = urljoin(meta['url'], str(relative_path))
 
+                            if not file_match.empty:
+                                relative_path = file_match.iloc[0][man_filename_col]
+                                full_url = urljoin(meta['url'], str(relative_path))
                                 resolved_paths[cohort][inp_type] = full_url
                                 found = True
-                                break # Found the file for this input, break inner loop (samples)
-                        
+                                break  # Found the file for this input
+
                         if found:
-                            break # Found this input in this dataset, break dataset loop
+                            break  # Found this input in this dataset
                         else:
                             resolved_paths[cohort][inp_type] = None
-                
+
                 if not found:
-                    # raise ValueError(f"Could not find input '{inp_type}' for cohort '{cohort}' in any provided dataset.")
                     resolved_paths[cohort][inp_type] = None
-                    
+
         return resolved_paths

@@ -3,20 +3,24 @@
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, JSONResponse
+from fastapi.responses import Response, JSONResponse, StreamingResponse
 import traceback
 from pathlib import Path
 import io
 import os
+import json
+import shutil
 from router import tumour_segmentation
 from dotenv import load_dotenv
 from typing import List
 from sqlalchemy.orm import Session
 from models.api_models import ToolConfigRequest
+from services.minio_service import MinIOValidationError
 from models.db_model import User, Assay, Case, CaseInput, CaseOutput
 from services.minio_service import MinIOService
 from database.database import get_db, init_db
 from utils.setup import Config, get_external_base_url, rewrite_url_for_docker
+from utils.convert import convert_nii_to_gltf
 from contextlib import asynccontextmanager
 
 
@@ -65,219 +69,289 @@ async def root():
     return "Welcome to segmentation backend"
 
 
+@app.get('/api/health')
+async def health():
+    return {"status": "ok"}
+
+
 @app.post('/api/tool-config')
 async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_db)):
-    print(f"Received tool config for user: {request.user_info.uuid}")
+    print(f"\n{'='*60}")
+    print(f"[tool-config] user={request.user_info.uuid}, assay={request.assay_info.uuid}")
+    print(f"  datasets: {request.assay_info.datasets}")
+    print(f"  cohorts:  {request.assay_info.cohorts}")
+    print(f"  minio:    {request.system.minio.base_url}")
+    print(f"{'='*60}")
 
-    # 1. Validation & Resolution
+    # 1. Validation & Resolution (pre-streaming — errors raise HTTPException)
     minio_service = MinIOService()
 
     # 1.1 Validate Minio public path
-    minio_public_path = request.system.minio.public_path
-    minio_service.validate_public_path(minio_public_path)
+    minio_base_url = request.system.minio.base_url
+    print(f"[Step 1.1] Validating MinIO base URL: {minio_base_url}")
+    try:
+        minio_service.validate_base_url(minio_base_url)
+    except MinIOValidationError as e:
+        print(f"[Step 1.1] FAILED: {e.summary}")
+        raise HTTPException(status_code=400, detail={
+            "step": e.step, "summary": e.summary, "detail": e.detail
+        })
+    print(f"[Step 1.1] OK")
 
     datasets = request.assay_info.datasets
     cohorts = request.assay_info.cohorts
-    required_inputs = Config.INPUTS  # e.g. ["contrast-1"]
+    required_inputs = Config.INPUTS
 
     # 1.2 - 1.4 Validate datasets, cohorts, and resolve inputs
     try:
-        # returns { cohort_name: { input_type: full_url } }
         resolved_results = minio_service.validate_and_resolve_inputs(
-            public_path=minio_public_path,
+            public_path=minio_base_url,
             datasets=datasets,
             cohorts=cohorts,
             required_inputs=required_inputs
         )
-    except ValueError as e:
-        import traceback
+        print(f"[Step 1.4] Input resolution complete")
+    except MinIOValidationError as e:
         traceback.print_exc()
-        raise HTTPException(status_code=400, detail=str(e))
+        print(f"[Step {e.step}] FAILED: {e.summary}")
+        raise HTTPException(status_code=400, detail={
+            "step": e.step, "summary": e.summary, "detail": e.detail
+        })
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail={
+            "step": "unknown", "summary": f"Unexpected validation error: {e}", "detail": str(e)
+        })
 
-    # Rewrite URLs for Docker environment (replace internal MinIO host with external address)
+    # Rewrite URLs for Docker environment
     external_base = get_external_base_url()
     if external_base:
-        print(f"Docker detected: rewriting URLs with external base: {external_base}")
+        print(f"Docker detected: rewriting MinIO URLs with external base: {external_base}")
         for cohort in resolved_results:
             for input_type in resolved_results[cohort]:
                 resolved_results[cohort][input_type] = rewrite_url_for_docker(
                     resolved_results[cohort][input_type], external_base
                 )
 
-    # Transactional DB updates
-    try:
+    # Store request data for the generator (closures capture these)
+    req_user_uuid = request.user_info.uuid
+    req_assay_uuid = request.assay_info.uuid
+    req_assay_name = request.assay_info.name
 
-        # pre: make sure the output folder exist
-        # Create output directory: outputs/{user_uuid}/{assay_uuid}/medical-image-annotator-outputs
-        output_dir = Path(
-            "outputs") / request.user_info.uuid / request.assay_info.uuid / "medical-image-annotator-outputs"
-        output_dir.mkdir(parents=True, exist_ok=True)
+    def sse_event(event: str, data: dict) -> str:
+        return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
-        output_sds_dir = output_dir.parent / "medical-image-annotator-outputs-sds"
-        output_sds_dir.mkdir(parents=True, exist_ok=True)
+    def process_cases():
+        """Generator that processes cases and yields SSE events."""
+        total_cases = len(cohorts)
 
-        # 1. User
-        user = db.query(User).filter(User.uuid == request.user_info.uuid).first()  # type: ignore
-        if not user:
-            user = User(uuid=request.user_info.uuid)
-            db.add(user)
-            db.commit()
-            db.refresh(user)
+        try:
+            # Create output directories
+            output_dir = Path("outputs") / req_user_uuid / req_assay_uuid / "medical-image-annotator-outputs"
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_sds_dir = output_dir.parent / "medical-image-annotator-outputs-sds"
+            output_sds_dir.mkdir(parents=True, exist_ok=True)
 
-        # 2. Assay
-        # Check if assay exists by UUID
-        assay = db.query(Assay).filter(
-            Assay.uuid == request.assay_info.uuid  # type: ignore
-        ).first()
-
-        if not assay:
-            assay = Assay(
-                uuid=request.assay_info.uuid,
-                user_uuid=user.uuid,
-                name=request.assay_info.name,
-                minio_public_path=minio_public_path,
-                datasets_config=datasets,
-                cohorts_config=cohorts,
-                output_path=str(output_dir),
-                output_sds_path=str(output_sds_dir)
-            )
-            db.add(assay)
-            db.commit()
-            db.refresh(assay)
-
-        # 3. Cases (Cohorts)
-        # "cohort name is case name"
-        for cohort in cohorts:
-            # Check if case exists for this assay
-            case = db.query(Case).filter(Case.assay_uuid == assay.uuid, Case.name == cohort).first()  # type: ignore
-            if not case:
-                case = Case(
-                    assay_uuid=assay.uuid,
-                    user_uuid=user.uuid,
-                    name=cohort,
-                    is_current=False
-                )
-                db.add(case)
+            # 1. User
+            user = db.query(User).filter(User.uuid == req_user_uuid).first()
+            if not user:
+                user = User(uuid=req_user_uuid)
+                db.add(user)
                 db.commit()
-                db.refresh(case)
+                db.refresh(user)
 
-            # 4. Inputs
-            # "update to case_inputs table"
-            # We have resolved_results[cohort]['contrast-pre'] -> url
-            contrast_pre_url = resolved_results[cohort].get("contrast-pre")
-            contrast_1_url = resolved_results[cohort].get("contrast-1")
-            contrast_2_url = resolved_results[cohort].get("contrast-2")
-            contrast_3_url = resolved_results[cohort].get("contrast-3")
-            contrast_4_url = resolved_results[cohort].get("contrast-4")
-            registration_pre_url = resolved_results[cohort].get("registration-pre")
-            registration_1_url = resolved_results[cohort].get("registration-1")
-            registration_2_url = resolved_results[cohort].get("registration-2")
-            registration_3_url = resolved_results[cohort].get("registration-3")
-            registration_4_url = resolved_results[cohort].get("registration-4")
-
-            if not case.input:
-                case_input = CaseInput(case_id=case.id, 
-                                        contrast_pre_path=contrast_pre_url, 
-                                        contrast_1_path=contrast_1_url, 
-                                        contrast_2_path=contrast_2_url, 
-                                        contrast_3_path=contrast_3_url, 
-                                        contrast_4_path=contrast_4_url, 
-                                        registration_pre_path=registration_pre_url, 
-                                        registration_1_path=registration_1_url, 
-                                        registration_2_path=registration_2_url, 
-                                        registration_3_path=registration_3_url, 
-                                        registration_4_path=registration_4_url)
-                db.add(case_input)
-            else:
-                case.input.contrast_pre_path = contrast_pre_url
-                case.input.contrast_1_path = contrast_1_url
-                case.input.contrast_2_path = contrast_2_url
-                case.input.contrast_3_path = contrast_3_url
-                case.input.contrast_4_path = contrast_4_url
-                case.input.registration_pre_path = registration_pre_url
-                case.input.registration_1_path = registration_1_url
-                case.input.registration_2_path = registration_2_url
-                case.input.registration_3_path = registration_3_url
-                case.input.registration_4_path = registration_4_url
-
-            # 5. Output (ensure it exists)
-            if not case.output:
-
-                # Create case-specific folder
-                case_folder = output_dir / cohort
-                case_folder.mkdir(parents=True, exist_ok=True)
-                
-                file_info = {}
-
-                for idx, output_type in enumerate(Config.OUTPUTS):
-                    # Create legacy JSON mask file for backward compatibility
-                    filename = output_type
-                    if "json" in output_type and not filename.endswith(".json"):
-                        filename += ".json"
-                    elif "nii" in output_type and not filename.endswith(".nii.gz") and not filename.endswith(".nii"):
-                        filename += ".nii.gz"  # Common in medical imaging, but let's stick to simple .nii if specified or no ext
-                    elif "obj" in output_type and not filename.endswith(".obj"):
-                        filename += ".obj"
-                    elif "glb" in output_type and not filename.endswith(".glb"):
-                        filename += ".glb"
-
-                    sam_folder = output_dir / cohort / f"sam-{idx + 1}"
-                    sam_folder.mkdir(exist_ok=True, parents=True)
-                    file_path = sam_folder / filename
-
-                    # Create empty file
-                    if not file_path.exists():
-                        file_path.touch()
-
-                    # Get size
-                    file_size = file_path.stat().st_size
-
-                    file_info[output_type] = {
-                        "path": str(file_path),
-                        "size": file_size
-                    }
-
-                # Update case_output with fields matching Config.OUTPUTS
-                case_output = CaseOutput(
-                    case_id=case.id,
-                    # Config.OUTPUTS[0]: mask-meta-json
-                    mask_meta_json_path=file_info.get("mask-meta-json", {}).get("path"),
-                    mask_meta_json_size=file_info.get("mask-meta-json", {}).get("size"),
-                    # Config.OUTPUTS[1-3]: mask-layer1-nii, mask-layer2-nii, mask-layer3-nii
-                    mask_layer1_nii_path=file_info.get("mask-layer1-nii", {}).get("path"),
-                    mask_layer1_nii_size=file_info.get("mask-layer1-nii", {}).get("size"),
-                    mask_layer2_nii_path=file_info.get("mask-layer2-nii", {}).get("path"),
-                    mask_layer2_nii_size=file_info.get("mask-layer2-nii", {}).get("size"),
-                    mask_layer3_nii_path=file_info.get("mask-layer3-nii", {}).get("path"),
-                    mask_layer3_nii_size=file_info.get("mask-layer3-nii", {}).get("size"),
-                    mask_layer4_nii_path=file_info.get("mask-layer4-nii", {}).get("path"),
-                    mask_layer4_nii_size=file_info.get("mask-layer4-nii", {}).get("size"),
-                    # Config.OUTPUTS[4]: mask-obj
-                    mask_obj_path=file_info.get("mask-obj", {}).get("path"),
-                    mask_obj_size=file_info.get("mask-obj", {}).get("size"),
-
-                    mask_glb_path=file_info.get("mask-glb", {}).get("path"),
-                    mask_glb_size=file_info.get("mask-glb", {}).get("size"),
-
-                    temp_dataset_name="medical-image-annotator-outputs",
+            # 2. Assay
+            assay = db.query(Assay).filter(Assay.uuid == req_assay_uuid).first()
+            if not assay:
+                assay = Assay(
+                    uuid=req_assay_uuid,
+                    user_uuid=user.uuid,
+                    name=req_assay_name,
+                    minio_base_url=minio_base_url,
+                    datasets_config=datasets,
+                    cohorts_config=cohorts,
+                    output_path=str(output_dir),
+                    output_sds_path=str(output_sds_dir)
                 )
+                db.add(assay)
+                db.commit()
+                db.refresh(assay)
 
-                db.add(case_output)
+            # 3. Process each case (cohort)
+            for case_idx, cohort in enumerate(cohorts):
+                yield sse_event("progress", {
+                    "step": "resolving_inputs",
+                    "case": cohort,
+                    "total_cases": total_cases,
+                    "current": case_idx + 1
+                })
 
+                # Create or get case
+                case = db.query(Case).filter(Case.assay_uuid == assay.uuid, Case.name == cohort).first()
+                if not case:
+                    case = Case(
+                        assay_uuid=assay.uuid,
+                        user_uuid=user.uuid,
+                        name=cohort,
+                        is_current=False
+                    )
+                    db.add(case)
+                    db.commit()
+                    db.refresh(case)
 
-        db.commit()
-        return {"status": "success", "assay_id": assay.id}
+                # 4. Inputs — resolve all input types from resolved_results
+                input_fields = {
+                    "contrast_pre_path": resolved_results[cohort].get("contrast_pre"),
+                    "contrast_1_path": resolved_results[cohort].get("contrast_1"),
+                    "contrast_2_path": resolved_results[cohort].get("contrast_2"),
+                    "contrast_3_path": resolved_results[cohort].get("contrast_3"),
+                    "contrast_4_path": resolved_results[cohort].get("contrast_4"),
+                    "registration_pre_path": resolved_results[cohort].get("registration_pre"),
+                    "registration_1_path": resolved_results[cohort].get("registration_1"),
+                    "registration_2_path": resolved_results[cohort].get("registration_2"),
+                    "registration_3_path": resolved_results[cohort].get("registration_3"),
+                    "registration_4_path": resolved_results[cohort].get("registration_4"),
+                    "model_predicted_nii_path": resolved_results[cohort].get("model_predicted_nii"),
+                    "researcher_manual_nii_path": resolved_results[cohort].get("researcher_manual_nii"),
+                }
 
-    except Exception as e:
-        db.rollback()
-        import traceback
-        error_tb = traceback.format_exc()
-        print(f"[get_tool_config] Error during DB transaction:\n{error_tb}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"{type(e).__name__} at {traceback.extract_tb(e.__traceback__)[-1].filename}:"
-                   f"{traceback.extract_tb(e.__traceback__)[-1].lineno} - {str(e)}"
-        )
+                if not case.input:
+                    case_input = CaseInput(case_id=case.id, **input_fields)
+                    db.add(case_input)
+                else:
+                    for field, value in input_fields.items():
+                        setattr(case.input, field, value)
+
+                # 5. Output — one file per sam folder, driven by Config.OUTPUTS
+                if not case.output:
+                    case_folder = output_dir / cohort
+                    output_names = Config.OUTPUTS
+                    output_extensions = Config.OUTPUT_EXTENSIONS
+
+                    # Create sam folders and file paths dynamically
+                    output_paths = {}  # output_name -> Path
+                    for idx, out_name in enumerate(output_names, start=1):
+                        sam_folder = case_folder / f"sam-{idx}"
+                        sam_folder.mkdir(parents=True, exist_ok=True)
+                        ext = output_extensions.get(out_name, "")
+                        output_paths[out_name] = sam_folder / f"{out_name}{ext}"
+
+                    # Initialize mask_meta_json (empty JSON)
+                    if not output_paths["mask_meta_json"].exists():
+                        output_paths["mask_meta_json"].write_text("{}")
+
+                    # Initialize validate_json with default values
+                    yield sse_event("progress", {
+                        "step": "create_validate_json",
+                        "case": cohort,
+                        "total_cases": total_cases,
+                        "current": case_idx + 1
+                    })
+                    default_validate = {
+                        "no_need_for_correction": False,
+                        "corrected": False,
+                        "reject": False,
+                        "finished": False
+                    }
+                    output_paths["validate_json"].write_text(json.dumps(default_validate, indent=2))
+
+                    # Auto-copy researcher_manual_nii → clinician_validated_nii
+                    clinician_nii_path = output_paths["clinician_validated_nii"]
+                    researcher_nii_url = resolved_results[cohort].get("researcher_manual_nii")
+                    if researcher_nii_url:
+                        yield sse_event("progress", {
+                            "step": "copy_nii",
+                            "case": cohort,
+                            "total_cases": total_cases,
+                            "current": case_idx + 1
+                        })
+                        try:
+                            bucket, object_path = minio_service._extract_bucket_and_path(researcher_nii_url)
+                            response = minio_service.client.get_object(bucket, object_path)
+                            with open(clinician_nii_path, 'wb') as f:
+                                shutil.copyfileobj(response, f)
+                            response.close()
+                            response.release_conn()
+                            print(f"  Copied researcher_manual_nii → {clinician_nii_path}")
+                        except Exception as e:
+                            print(f"  Warning: Failed to copy researcher_manual_nii for {cohort}: {e}")
+                            if not clinician_nii_path.exists():
+                                clinician_nii_path.touch()
+                    else:
+                        if not clinician_nii_path.exists():
+                            clinician_nii_path.touch()
+
+                    # Create empty GLB placeholder (will be overwritten by conversion)
+                    mask_glb_path = output_paths["mask_glb"]
+                    if not mask_glb_path.exists():
+                        mask_glb_path.touch()
+
+                    # Create CaseOutput record dynamically from Config.OUTPUTS
+                    case_output_kwargs = {"case_id": case.id, "temp_dataset_name": "medical-image-annotator-outputs"}
+                    for out_name in output_names:
+                        p = output_paths[out_name]
+                        case_output_kwargs[f"{out_name}_path"] = str(p)
+                        case_output_kwargs[f"{out_name}_size"] = p.stat().st_size
+
+                    case_output_record = CaseOutput(**case_output_kwargs)
+                    db.add(case_output_record)
+                    db.commit()
+                    db.refresh(case_output_record)
+
+                    # Auto-convert NII → GLTF (only if we have actual NII data)
+                    if researcher_nii_url and clinician_nii_path.stat().st_size > 0:
+                        yield sse_event("progress", {
+                            "step": "convert_gltf",
+                            "case": cohort,
+                            "total_cases": total_cases,
+                            "current": case_idx + 1
+                        })
+                        try:
+                            result = convert_nii_to_gltf(
+                                case_output_record,
+                                nii_path=str(clinician_nii_path),
+                                glb_path=str(mask_glb_path)
+                            )
+                            if result:
+                                case_output_record.mask_glb_size = Path(result).stat().st_size
+                                print(f"  Converted NII → GLTF for {cohort}")
+                            else:
+                                print(f"  Warning: GLTF conversion returned None for {cohort} (possibly empty mask)")
+                        except Exception as e:
+                            print(f"  Warning: GLTF conversion failed for {cohort}: {e}")
+
+                    # Update DB
+                    yield sse_event("progress", {
+                        "step": "update_db",
+                        "case": cohort,
+                        "total_cases": total_cases,
+                        "current": case_idx + 1
+                    })
+                    db.commit()
+
+            # Final commit and success event
+            db.commit()
+            yield sse_event("complete", {"status": "success", "assay_id": assay.id})
+
+        except Exception as e:
+            db.rollback()
+            error_tb = traceback.format_exc()
+            print(f"[get_tool_config] Error during processing:\n{error_tb}")
+            yield sse_event("error", {
+                "step": "processing",
+                "summary": "Internal server error during case processing",
+                "detail": f"{type(e).__name__}: {str(e)}"
+            })
+
+    return StreamingResponse(
+        process_cases(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
 
 
 @app.get("/data/users")
@@ -301,13 +375,22 @@ async def get_cases(db: Session = Depends(get_db)):
     # Return cases with inputs and outputs
     result = []
     for case in cases:
+        # Read validate_json from file if available
+        validate_json_data = None
+        if case.output and case.output.validate_json_path:
+            try:
+                with open(case.output.validate_json_path) as f:
+                    validate_json_data = json.loads(f.read())
+            except Exception:
+                validate_json_data = None
+
         result.append({
             "id": case.id,
             "name": case.name,
             "user_uuid": case.user_uuid,
             "assay_uuid": case.assay_uuid,
             "input": {
-                "contrast_pre_path": case.input.contrast_pre_path if case.input.contrast_pre_path else None,
+                "contrast_pre_path": case.input.contrast_pre_path if case.input else None,
                 "contrast_1_path": case.input.contrast_1_path if case.input else None,
                 "contrast_2_path": case.input.contrast_2_path if case.input else None,
                 "contrast_3_path": case.input.contrast_3_path if case.input else None,
@@ -317,13 +400,17 @@ async def get_cases(db: Session = Depends(get_db)):
                 "registration_2_path": case.input.registration_2_path if case.input else None,
                 "registration_3_path": case.input.registration_3_path if case.input else None,
                 "registration_4_path": case.input.registration_4_path if case.input else None,
+                "model_predicted_nii_path": case.input.model_predicted_nii_path if case.input else None,
+                "researcher_manual_nii_path": case.input.researcher_manual_nii_path if case.input else None,
             },
             "output": {
-                "mask_json_path": case.output.mask_json_path if case.output else None,
-                "mask_json_size": case.output.mask_json_size if case.output else None,
-                "mask_obj_path": case.output.mask_obj_path if case.output else None,
-                "mask_obj_size": case.output.mask_obj_size if case.output else None,
-                "tumour_center_position_json_path": case.output.tumour_center_position_json_path if case.output else None,
+                "mask_meta_json_path": case.output.mask_meta_json_path if case.output else None,
+                "mask_meta_json_size": case.output.mask_meta_json_size if case.output else None,
+                "clinician_validated_nii_path": case.output.clinician_validated_nii_path if case.output else None,
+                "clinician_validated_nii_size": case.output.clinician_validated_nii_size if case.output else None,
+                "mask_glb_path": case.output.mask_glb_path if case.output else None,
+                "mask_glb_size": case.output.mask_glb_size if case.output else None,
+                "validate_json": validate_json_data,
             }
         })
     return result

@@ -49,7 +49,7 @@ export function useCaseManagement(deps: ICaseManagementDeps) {
     const { nrrdTools, loadingContainer, progress, config } = deps;
 
     const { allCasesDetails } = storeToRefs(useSegmentationCasesStore());
-    const { getAllCasesDetails } = useSegmentationCasesStore();
+    const { getAllCasesDetails, fetchValidateStatus } = useSegmentationCasesStore();
 
     /** Current case name */
     const currentCaseName = ref("");
@@ -71,11 +71,14 @@ export function useCaseManagement(deps: ICaseManagementDeps) {
     let regiterUrls: ICaseUrls = { nrrdUrls: [], jsonUrl: "" };
     let loadedUrls: ILoadUrls = {};
 
+
     /** Register switch bar status (true = register, false = origin) */
     let regiterSwitchBarStatus = true;
 
     /**
-     * Syncs contrast and registration pairs
+     * Syncs contrast and registration pairs.
+     * If one side has a URL and the other doesn't, copy it over.
+     * If both are null, leave them as-is.
      */
     function syncPair(input: Record<InputKey, string>, suffix: Suffix) {
         const cKey = `contrast_${suffix}` as const;
@@ -128,6 +131,8 @@ export function useCaseManagement(deps: ICaseManagementDeps) {
         );
 
         if (currentCaseDetail.value) {
+            // Fetch validation status for the new case
+            fetchValidateStatus(currentCaseDetail.value.id);
             regiterUrls = {
                 nrrdUrls: [],
                 jsonUrl:
@@ -143,6 +148,7 @@ export function useCaseManagement(deps: ICaseManagementDeps) {
                         : "",
             };
 
+            // Sync pairs: if one side has a URL, copy to the other
             suffixes.forEach((suffix) => {
                 syncPair(currentCaseDetail.value!.input, suffix);
                 if (!!currentCaseDetail.value!.input[`registration_${suffix}`]) {
@@ -218,6 +224,9 @@ export function useCaseManagement(deps: ICaseManagementDeps) {
             url: sendToRightContrstUrl,
             register: isShowRegisterImage,
         });
+
+        // Trigger mask reloading for the newly selected origin/register slices
+        emitter.emit("Segmentation:SetMaskData");
 
         tellAllRelevantComponentsImagesLoaded();
         switchAnimationStatus(loadingContainer.value!, progress.value!, "none");

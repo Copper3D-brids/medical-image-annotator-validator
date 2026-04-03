@@ -82,10 +82,23 @@ class Config:
     METADATA_PATH = "manifest.xlsx"
     SAMPLES_METADATA_PATH = "samples.xlsx"
     SUBJECTS_METADATA_PATH = "subjects.xlsx"
-    INPUTS = ["contrast-pre", "contrast-1", "contrast-2", "contrast-3", "contrast-4", "registration-pre",
-              "registration-1", "registration-2", "registration-3", "registration-4"]
-    OUTPUTS = ["mask-meta-json", "mask-layer1-nii", "mask-layer2-nii", "mask-layer3-nii", "mask-layer4-nii", "mask-obj",
-               "mask-glb"]
+    INPUTS = ["contrast_pre", "contrast_1", "contrast_2", "contrast_3", "contrast_4", "registration_pre",
+              "registration_1", "registration_2", "registration_3", "registration_4", "model_predicted_nii", "researcher_manual_nii"]
+    OUTPUTS = ["mask_meta_json", "clinician_validated_nii", "mask_glb", "validate_json"]
+    OUTPUT_EXTENSIONS = {
+        "mask_meta_json": ".json",
+        "clinician_validated_nii": ".nii.gz",
+        "mask_glb": ".glb",
+        "validate_json": ".json",
+    }
+
+    # MinIO SDK credentials (for private bucket access)
+    # Local dev default: minioadmin/minioadmin @ localhost:9000 (MinIO native port)
+    # Docker: injected via docker-compose environment from MINIO_SERVER_ACCESS_KEY/SECRET_KEY
+    MINIO_ENDPOINT = os.environ.get("MINIO_ENDPOINT", "localhost:9000")
+    MINIO_ACCESS_KEY = os.environ.get("MINIO_ACCESS_KEY", "minioadmin")
+    MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY", "minioadmin")
+    MINIO_SECURE = os.environ.get("MINIO_SECURE", "false").lower() in ("true", "1")
 
 
 class TumourData:

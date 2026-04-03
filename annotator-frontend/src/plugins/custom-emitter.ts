@@ -42,6 +42,7 @@ const eventNames = [
     "SDS:ExportRequested",
     "SDS:GenerationComplete",
     "SDS:GenerationError",
+    "Segmentation:SetMaskData",
 ];
 type EventNames = (typeof eventNames)[number];
 
