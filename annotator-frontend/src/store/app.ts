@@ -36,6 +36,15 @@ export const useSegmentationCasesStore = defineStore("allSegmentationCasesDetail
 
   const setValidateStatus = (status: IValidateStatus) => {
     currentCaseValidateStatus.value = status;
+    // Also patch allCasesDetails so v-select status display stays in sync
+    if (currentCaseId.value !== null && allCasesDetails.value?.details) {
+      const detail = allCasesDetails.value.details.find(
+        (d) => String(d.id) === String(currentCaseId.value)
+      );
+      if (detail) {
+        detail.output.validate_json = status;
+      }
+    }
   };
 
   return {
