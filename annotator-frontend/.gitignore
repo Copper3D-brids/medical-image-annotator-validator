@@ -33,3 +33,5 @@ test
 # src/assets/tool_config.json
 
 .vite
+
+ts

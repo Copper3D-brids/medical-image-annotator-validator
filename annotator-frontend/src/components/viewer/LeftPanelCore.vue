@@ -166,6 +166,11 @@ const loadMask = defineModel('loadMask', {
     default: false
 });
 
+const skipReset = defineModel('skipReset', {
+    type: Boolean,
+    default: false
+});
+
 const emit = defineEmits(
   [
     "update:finishedCopperInit",
@@ -360,20 +365,26 @@ watch(filesCount, ()=>{
   ) {
     console.log("All files ready!");
 
-    nrrdTools!.reset();
-    nrrdTools!.setAllSlices(allSlices);
-
-    if (firstLoad) {
-
-      nrrdTools!.drag({ getSliceNum });
-      nrrdTools!.draw({ getMaskData, onClearLayerVolume, getSphereData, getCalculateSpherePositionsData});
-      nrrdTools!.setupGUI(gui as GUI);
-      nrrdTools!.enableContrastDragEvents(getContrastMove)
-
-      coreRenderId = scene?.addPreRenderCallbackFunction(nrrdTools!.start) as number;
-      emitter!.emit("Core:NrrdTools", nrrdTools);
+    if (skipReset.value) {
+      // Register/origin switch: swap slices without destructive reset.
+      // This preserves masks, slice index, zoom, and pan position.
+      nrrdTools!.switchSlicesPreservingView(allSlices);
+      skipReset.value = false;
     } else {
-      nrrdTools!.redrawMianPreOnDisplayCanvas();
+      nrrdTools!.reset();
+      nrrdTools!.setAllSlices(allSlices);
+
+      if (firstLoad) {
+        nrrdTools!.drag({ getSliceNum });
+        nrrdTools!.draw({ getMaskData, onClearLayerVolume, getSphereData, getCalculateSpherePositionsData});
+        nrrdTools!.setupGUI(gui as GUI);
+        nrrdTools!.enableContrastDragEvents(getContrastMove)
+
+        coreRenderId = scene?.addPreRenderCallbackFunction(nrrdTools!.start) as number;
+        emitter!.emit("Core:NrrdTools", nrrdTools);
+      } else {
+        nrrdTools!.redrawMianPreOnDisplayCanvas();
+      }
     }
 
     if (loadMask.value) {

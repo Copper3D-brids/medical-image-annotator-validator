@@ -3,6 +3,7 @@
   <LeftPanelCore 
     ref="leftPanelCoreRef"
     v-model:load-mask="caseManagement.loadMask.value"
+    v-model:skip-reset="caseManagement.skipReset.value"
     :show-debug-panel="isShowDebugPanel" 
     :show-slice-index="true"
     :enable-upload="true"
@@ -242,17 +243,22 @@ const getContrastMove = (res: IToolGetMouseDragContrastMove) => {
 };
 
 const handleAllImagesLoaded = async (res: IToolAfterLoadImagesResponse) => {
-  // Store slices
-  caseManagement.handleAllImagesLoaded(res);
+  // Store slices — returns true if this was a register/origin switch
+  const wasRegisterSwitch = caseManagement.handleAllImagesLoaded(res);
   displaySlicesLength = res.allSlices.length;
-  // Set channel color (for debug, can be removed later)
-  // (nrrdTools.value as Copper.NrrdTools).setChannelColor("layer1", 1, { r: 25, g: 0, b: 0, a:255 });
+
+  if (wasRegisterSwitch) {
+    // Register/origin switch: skip contrast rebuild and mask reload.
+    // Contrast selection and masks are already set from the register phase.
+    caseManagement.tellAllRelevantComponentsImagesLoaded();
+    return;
+  }
+
   // Set file count FIRST (needed for slider calculation)
   sliceNav.currentCaseContractsCount.value = res.allSlices.length;
 
   // Then update nav state (sets initSliceIndex which uses fileNum)
   sliceNav.updateNavigationAfterLoad();
-
 
   // Build contrast state from actual input data (only non-null contrast fields)
   const selectedState: TContrastSelected = {};
