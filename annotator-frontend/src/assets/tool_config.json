@@ -6,12 +6,10 @@
     "uuid": "assay-001",
     "name": "annotation-app",
     "cohorts": [
-      "sub-1",
-      "sub-2"
+      "sub-1"
     ],
     "datasets": [
-      "workdir_demo",
-      "mask-nii-sds"
+      "workdir"
     ]
   },
   "system": {
