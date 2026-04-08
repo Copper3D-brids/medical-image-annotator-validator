@@ -105,25 +105,13 @@ function isActive(action: string): boolean {
   return (currentCaseValidateStatus.value as any)[action] === true;
 }
 
-function isCurrentCaseFinished(): boolean {
-  return currentCaseValidateStatus.value?.finished === true;
-}
-
 function onPrevious() {
-  if (!isCurrentCaseFinished()) {
-    toast.warning("Please complete the current case validation before navigating.");
-    return;
-  }
   if (!allCasesDetails.value?.names || currentCaseIndex.value <= 0) return;
   const prevName = allCasesDetails.value.names[currentCaseIndex.value - 1];
   emitter.emit("Segementation:CaseSwitched", prevName);
 }
 
 function onNext() {
-  if (!isCurrentCaseFinished()) {
-    toast.warning("Please complete the current case validation before navigating to the next case.");
-    return;
-  }
   if (!allCasesDetails.value?.names || currentCaseIndex.value >= totalCases.value - 1) return;
   const nextName = allCasesDetails.value.names[currentCaseIndex.value + 1];
   emitter.emit("Segementation:CaseSwitched", nextName);

@@ -12,14 +12,43 @@
       <v-select
       class="mx-4"
       v-model="selectedCaseName"
-      :items="allCasesDetails?.names"
+      :items="caseSelectItems"
+      item-title="title"
+      item-value="value"
       density="comfortable"
       label="Cases"
       variant="outlined"
       :autofocus="true"
       :disabled="disableSelectCase"
       @update:modelValue="onCaseSwitched"
-    ></v-select>
+    >
+      <!-- Selected value display -->
+      <template #selection="{ item }">
+        <span class="text-truncate mr-1">{{ item.raw.title }}</span>
+        <v-chip
+          :color="item.raw.statusColor"
+          size="small"
+          label
+        >{{ item.raw.statusLabel }}</v-chip>
+      </template>
+
+      <!-- Dropdown list items -->
+      <template #item="{ item, props }">
+        <v-list-item v-bind="props" :title="undefined">
+          <template #title>
+            <div class="d-flex align-center justify-space-between">
+              <span class="text-truncate">{{ item.raw.title }}</span>
+              <v-chip
+                :color="item.raw.statusColor"
+                size="x-small"
+                label
+                class="ml-2 flex-shrink-0"
+              >{{ item.raw.statusLabel }}</v-chip>
+            </div>
+          </template>
+        </v-list-item>
+      </template>
+    </v-select>
 
     <v-select
       class="mx-4"
@@ -62,14 +91,12 @@
  * @emits Segmentation:RegisterImageChanged - Emitted when register toggle changes
  */
 import Switcher from "@/components/common/Switcher.vue";
-import { ref, nextTick, onMounted, onUnmounted, onBeforeMount, watch } from "vue";
+import { ref, computed, nextTick, onMounted, onUnmounted, onBeforeMount, watch } from "vue";
 import { useSegmentationCasesStore } from "@/store/app";
 import { storeToRefs } from "pinia";
 import emitter from "@/plugins/custom-emitter";
 import { useAppConfig } from "@/plugins/hooks/config";
 import { useCases } from "@/plugins/hooks/cases";
-import { useToast } from "@/composables/useToast";
-
 /** Type for tracking selected state of each contrast phase */
 type selecedType = {
   [key: string]: boolean;
@@ -82,10 +109,34 @@ type resultType = {
 
 const { config } = useAppConfig();
 const { getCasesInfo } = useCases();
-const toast = useToast();
-
 /** All cases details and plugin ready flag from Pinia store */
-const { allCasesDetails, isPluginReady, currentCaseValidateStatus, currentCaseId } = storeToRefs(useSegmentationCasesStore());
+const { allCasesDetails, isPluginReady } = storeToRefs(useSegmentationCasesStore());
+
+const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+  unchecked:   { label: "unchecked", color: "grey"          },
+  no_need:     { label: "no need",   color: "teal"          },
+  corrected:   { label: "corrected", color: "amber-darken-2"},
+  reject:      { label: "reject",    color: "red-darken-1"  },
+};
+
+/**
+ * Maps each case to a select item with name, statusLabel and statusColor
+ * so the template can render a coloured chip next to the case name.
+ */
+const caseSelectItems = computed(() => {
+  if (!allCasesDetails.value?.details) return [];
+  return allCasesDetails.value.details.map((d) => {
+    const v = d.output?.validate_json;
+    let key = "unchecked";
+    if (v?.finished) {
+      if (v.no_need_for_correction) key = "no_need";
+      else if (v.corrected)         key = "corrected";
+      else if (v.reject)            key = "reject";
+    }
+    const { label, color } = STATUS_CONFIG[key];
+    return { title: d.name, value: d.name, statusLabel: label, statusColor: color };
+  });
+});
 
 /** Currently selected case name (v-model for v-select) */
 const selectedCaseName = ref<string | null>(null);
@@ -199,18 +250,6 @@ function onCaseSwitched(casename: any) {
   // Skip if this was triggered by an external event (prev/next/auto-select) updating the v-model
   if (_suppressCaseSwitchEmit) return;
 
-  // Guard: block switch if current case is not finished
-  if (currentCaseValidateStatus.value && currentCaseValidateStatus.value.finished === false) {
-    toast.warning("Please complete the current case validation before switching to another case.");
-    // Revert v-select back to the current active case name
-    const currentDetail = allCasesDetails.value?.details.find(
-      (d) => String(d.id) === String(currentCaseId.value)
-    );
-    nextTick(() => {
-      selectedCaseName.value = currentDetail?.name ?? null;
-    });
-    return;
-  }
   disableSelectCase.value = true;
   disableSelectContrast.value = true;
   switchDisabled.value = true;
