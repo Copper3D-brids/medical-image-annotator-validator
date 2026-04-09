@@ -60,6 +60,12 @@ export function useMaskOperations(deps: IMaskOperationsDeps) {
 
     const toast = useToast();
 
+    /** Track active layer for sync button (updated by LayerChannelSelector emitter) */
+    const activeLayerForSync = ref<'layer1' | 'layer2' | 'layer3'>('layer3');
+    emitter.on("LayerChannel:ActiveLayerChanged", (layerId: any) => {
+        activeLayerForSync.value = layerId as 'layer1' | 'layer2' | 'layer3';
+    });
+
     /**
      * Phase 5: Sends initial empty mask layers to backend
      *
@@ -102,7 +108,7 @@ export function useMaskOperations(deps: IMaskOperationsDeps) {
      * Validator 3-layer mask loading:
      *
      * - Layer 1 (Model Predicted): from input URL (read-only, never init)
-     * - Layer 2 (Researcher Manual): from input URL (read-only, never init)
+     * - Layer 2 (Researcher Manual): from output researcher_manual_nii_LPS (editable when unlocked)
      * - Layer 3 (Clinician Validated): from output (editable, init if empty)
      */
     const setMaskData = async () => {
@@ -123,8 +129,13 @@ export function useMaskOperations(deps: IMaskOperationsDeps) {
                 if (voxels) layerBuffers.set('layer1', voxels);
             }
 
-            // Layer 2 (Researcher Manual) — read-only input from MinIO proxy
-            if (caseDetail.input.researcher_manual_nii) {
+            // Layer 2 (Researcher Manual) — from output researcher_manual_nii_LPS
+            const hasLayer2 = Number(caseDetail.output.researcher_manual_nii_LPS_size || 0) > 0;
+            if (hasLayer2) {
+                const voxels = await useNiftiVoxelData(caseDetail.output.researcher_manual_nii_LPS_path!);
+                if (voxels) layerBuffers.set('layer2', voxels);
+            } else if (caseDetail.input.researcher_manual_nii) {
+                // Fallback: load from input (MinIO) if output not ready
                 const voxels = await useNiftiVoxelDataFromUrl(caseDetail.input.researcher_manual_nii);
                 if (voxels) layerBuffers.set('layer2', voxels);
             }
@@ -187,6 +198,14 @@ export function useMaskOperations(deps: IMaskOperationsDeps) {
             height,
         };
         await useReplaceMask(body);
+
+        // Frontend cascade: when layer2 is edited, the backend copies
+        // researcher_manual_nii_LPS → clinician_validated_nii_LPS.
+        // Mirror this in the browser by copying layer2's MaskVolume → layer3.
+        if (layerId === 'layer2' && nrrdTools.value) {
+            nrrdTools.value.copyLayerData('layer2', 'layer3');
+        }
+
         if (clearFlag) {
             await useClearMaskMesh(currentCaseDetail.value!.id);
         }
@@ -215,26 +234,29 @@ export function useMaskOperations(deps: IMaskOperationsDeps) {
      * @param flag - Whether to proceed with save
      * @param layerId - Layer to convert ('layer1', 'layer2', or 'layer3'), defaults to 'layer3'
      */
-    const onSaveMask = async (flag: boolean, layerId: 'layer1' | 'layer2' | 'layer3' = 'layer3') => {
+    const onSaveMask = async (flag: boolean, layerId?: 'layer1' | 'layer2' | 'layer3') => {
         if (flag) {
+            // Use the currently active layer if no explicit layerId provided
+            const targetLayer = layerId ?? activeLayerForSync.value;
+
             // Skip expensive hasLayerData check to avoid UI blocking
             // Backend will handle empty data gracefully
             switchAnimationStatus(
                 loadingContainer.value!,
                 progress.value!,
                 "flex",
-                `Converting ${layerId} to 3D mesh, please wait......`
+                `Converting ${targetLayer} to 3D mesh, please wait......`
             );
 
-            const result = await useSaveMasks(currentCaseDetail.value!.id, layerId);
+            const result = await useSaveMasks(currentCaseDetail.value!.id, targetLayer);
 
             switchAnimationStatus(loadingContainer.value!, progress.value!, "none");
 
             if (result && result.success) {
-                console.log(`Successfully started conversion of ${layerId} to OBJ mesh`);
+                console.log(`Successfully started conversion of ${targetLayer} to 3D mesh`);
                 emitter.emit("Segmentation:SyncTumourModelButtonClicked", true);
             } else {
-                console.error(`Failed to convert ${layerId} to OBJ mesh`);
+                console.error(`Failed to convert ${targetLayer} to 3D mesh`);
             }
         }
     };

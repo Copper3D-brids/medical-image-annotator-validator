@@ -26,6 +26,8 @@ export interface LayerConfig {
     defaultOpacity?: number;
     /** If true, layer is view-only and cannot be selected for editing */
     readOnly?: boolean;
+    /** If true, layer starts locked but can be unlocked by the user */
+    lockable?: boolean;
 }
 
 export interface ChannelConfig {
@@ -41,7 +43,7 @@ export interface ChannelConfig {
  */
 export const LAYER_CONFIGS: LayerConfig[] = [
     { id: 'layer1', name: 'Model Predicted', readOnly: true },
-    { id: 'layer2', name: 'Researcher Manual', readOnly: true, defaultOpacity: 0.8 },
+    { id: 'layer2', name: 'Researcher Manual', lockable: true, defaultOpacity: 0.8 },
     { id: 'layer3', name: 'Clinician Validated' },
 ];
 
@@ -102,6 +104,11 @@ export function useLayerChannel(deps: ILayerChannelDeps) {
 
     /** Whether the controls are enabled (after images loaded) */
     const controlsEnabled = ref(false);
+
+    /** Per-layer lock state (only for lockable layers; starts locked) */
+    const layerLocked = ref<Record<Copper.LayerId, boolean>>(
+        Object.fromEntries(LAYER_CONFIGS.map(l => [l.id, l.lockable ?? false]))
+    );
 
     /**
      * Color version counter — incremented to trigger re-computation
@@ -218,6 +225,22 @@ export function useLayerChannel(deps: ILayerChannelDeps) {
     }
 
     /**
+     * Toggle the lock state of a lockable layer
+     */
+    function toggleLayerLock(layerId: Copper.LayerId): void {
+        const config = LAYER_CONFIGS.find(l => l.id === layerId);
+        if (!config?.lockable) return;
+        layerLocked.value[layerId] = !layerLocked.value[layerId];
+    }
+
+    /**
+     * Check if a layer is currently locked (readOnly or lockable+locked)
+     */
+    function isLayerLocked(layerId: Copper.LayerId): boolean {
+        return layerLocked.value[layerId] ?? false;
+    }
+
+    /**
      * Force re-evaluation of dynamic channel colors.
      * Call this after using NrrdTools.setChannelColor() externally.
      */
@@ -292,6 +315,7 @@ export function useLayerChannel(deps: ILayerChannelDeps) {
         channelDisabled,
         controlsEnabled,
         layerOpacity,
+        layerLocked,
 
         // Computed
         dynamicChannelConfigs,
@@ -308,6 +332,8 @@ export function useLayerChannel(deps: ILayerChannelDeps) {
         setChannelDisabled,
         enableControls,
         disableControls,
+        toggleLayerLock,
+        isLayerLocked,
         refreshChannelColors,
         setLayerOpacity,
         syncFromManager,

@@ -29,22 +29,31 @@ async def notify_frontend(case_id: str):
 
 def gltf_converter(case_id: str, layer_id: str = None):
     """
-    Convert clinician_validated_nii_LPS to GLTF 3D mesh format with channel-specific colors.
+    Convert mask NIfTI to GLTF 3D mesh format with channel-specific colors.
 
-    Uses convert_nii_to_gltf with default clinician_validated_nii_LPS_path lookup.
+    Source NIfTI depends on layer_id:
+    - layer2 → researcher_manual_nii_LPS
+    - layer3 (default) → clinician_validated_nii_LPS
 
     :param case_id: ID of the case to process
-    :param layer_id: Ignored in validator variant (always uses clinician_validated_nii_LPS)
+    :param layer_id: Which layer's NIfTI to convert
     """
     with SessionLocal() as session:
         case_output = session.query(CaseOutput).filter(CaseOutput.case_id == case_id).first()  # type: ignore
 
         assert isinstance(case_output, CaseOutput)
 
-        print(f"Starting GLTF conversion of clinician_validated_nii_LPS for case {case_id}")
+        # Select NIfTI source based on layer_id
+        if layer_id == "layer2":
+            nii_path = case_output.researcher_manual_nii_LPS_path
+            label = "researcher_manual_nii_LPS"
+        else:
+            nii_path = case_output.clinician_validated_nii_LPS_path
+            label = "clinician_validated_nii_LPS"
 
-        # Convert NIfTI to GLTF (defaults to clinician_validated_nii_LPS_path when layer_id=None)
-        glb_path = convert.convert_nii_to_gltf(case_output)
+        print(f"Starting GLTF conversion of {label} for case {case_id}")
+
+        glb_path = convert.convert_nii_to_gltf(case_output, nii_path=nii_path)
 
         if glb_path:
             print(f"GLTF conversion complete for case {case_id}")

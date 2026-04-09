@@ -23,6 +23,8 @@ interface IInput {
 interface IOutput {
     mask_meta_json_path: string;
     mask_meta_json_size: string | number;
+    researcher_manual_nii_LPS_path?: string;
+    researcher_manual_nii_LPS_size?: string | number;
     clinician_validated_nii_LPS_path?: string;
     clinician_validated_nii_LPS_size?: string | number;
     clinician_validated_nii_RAI_path?: string;

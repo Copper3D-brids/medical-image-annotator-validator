@@ -1,8 +1,8 @@
 <template>
   <v-app>
     <default-bar
-      :title="'Medical Image Annotator'"
-      :version="'v3.2.2'"
+      :title="'Medical Image Annotator Validator'"
+      :version="'v3.3.3-beta'"
     > 
       <NavPanel />
       <template #theme>

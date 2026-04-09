@@ -255,7 +255,8 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                     }
                     output_paths["validate_json"].write_text(json.dumps(default_validate, indent=2))
 
-                    # Auto-copy researcher_manual_nii → clinician_validated_nii_LPS
+                    # Auto-copy researcher_manual_nii → researcher_manual_nii_LPS → clinician_validated_nii_LPS
+                    researcher_lps_path = output_paths["researcher_manual_nii_LPS"]
                     clinician_lps_path = output_paths["clinician_validated_nii_LPS"]
                     clinician_rai_path = output_paths["clinician_validated_nii_RAI"]
                     researcher_nii_url = resolved_results[cohort].get("researcher_manual_nii")
@@ -267,18 +268,31 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                             "current": case_idx + 1
                         })
                         try:
+                            # Step 1: Download from MinIO → researcher_manual_nii_LPS
                             bucket, object_path = minio_service._extract_bucket_and_path(researcher_nii_url)
                             response = minio_service.client.get_object(bucket, object_path)
-                            with open(clinician_lps_path, 'wb') as f:
+                            with open(researcher_lps_path, 'wb') as f:
                                 shutil.copyfileobj(response, f)
                             response.close()
                             response.release_conn()
-                            print(f"  Copied researcher_manual_nii → {clinician_lps_path}")
+                            print(f"  Copied researcher_manual_nii → {researcher_lps_path}")
+
+                            # Step 2: Copy researcher_manual_nii_LPS → clinician_validated_nii_LPS
+                            if researcher_lps_path.exists() and researcher_lps_path.stat().st_size > 0:
+                                shutil.copy2(str(researcher_lps_path), str(clinician_lps_path))
+                                print(f"  Copied researcher_manual_nii_LPS → {clinician_lps_path}")
+                            else:
+                                if not clinician_lps_path.exists():
+                                    clinician_lps_path.touch()
                         except Exception as e:
                             print(f"  Warning: Failed to copy researcher_manual_nii for {cohort}: {e}")
+                            if not researcher_lps_path.exists():
+                                researcher_lps_path.touch()
                             if not clinician_lps_path.exists():
                                 clinician_lps_path.touch()
                     else:
+                        if not researcher_lps_path.exists():
+                            researcher_lps_path.touch()
                         if not clinician_lps_path.exists():
                             clinician_lps_path.touch()
 
@@ -421,8 +435,12 @@ async def get_cases(db: Session = Depends(get_db)):
             "output": {
                 "mask_meta_json_path": case.output.mask_meta_json_path if case.output else None,
                 "mask_meta_json_size": case.output.mask_meta_json_size if case.output else None,
-                "clinician_validated_nii_path": case.output.clinician_validated_nii_path if case.output else None,
-                "clinician_validated_nii_size": case.output.clinician_validated_nii_size if case.output else None,
+                "researcher_manual_nii_LPS_path": case.output.researcher_manual_nii_LPS_path if case.output else None,
+                "researcher_manual_nii_LPS_size": case.output.researcher_manual_nii_LPS_size if case.output else None,
+                "clinician_validated_nii_LPS_path": case.output.clinician_validated_nii_LPS_path if case.output else None,
+                "clinician_validated_nii_LPS_size": case.output.clinician_validated_nii_LPS_size if case.output else None,
+                "clinician_validated_nii_RAI_path": case.output.clinician_validated_nii_RAI_path if case.output else None,
+                "clinician_validated_nii_RAI_size": case.output.clinician_validated_nii_RAI_size if case.output else None,
                 "mask_glb_path": case.output.mask_glb_path if case.output else None,
                 "mask_glb_size": case.output.mask_glb_size if case.output else None,
                 "validate_json": validate_json_data,

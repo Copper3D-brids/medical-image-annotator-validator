@@ -24,7 +24,7 @@
             'active': activeLayer === layer.id,
             'is-hidden': !layerVisibility[layer.id],
             'is-disabled': isLayerDisabled(layer.id),
-            'is-readonly': layer.readOnly
+            'is-readonly': layer.readOnly || (layer.lockable && isLayerLocked(layer.id))
           }"
         >
           <!-- Visibility Toggle (Left) -->
@@ -44,6 +44,12 @@
           >
             <span class="layer-name">{{ layer.name }}</span>
             <v-icon v-if="layer.readOnly" size="12" class="readonly-icon">mdi-lock-outline</v-icon>
+            <v-icon
+              v-else-if="layer.lockable"
+              size="12"
+              class="lockable-icon"
+              @click.stop="onToggleLock(layer.id)"
+            >{{ isLayerLocked(layer.id) ? 'mdi-lock-outline' : 'mdi-lock-open-variant-outline' }}</v-icon>
             <span v-if="!layerVisibility[layer.id]" class="status-text">(Hidden)</span>
           </div>
         </div>
@@ -122,6 +128,7 @@ const {
   layerDisabled,
   channelDisabled,
   controlsEnabled,
+  layerLocked,
   dynamicChannelConfigs,
   setActiveLayer,
   setActiveChannel,
@@ -129,6 +136,8 @@ const {
   toggleChannelVisibility,
   enableControls,
   disableControls,
+  toggleLayerLock,
+  isLayerLocked,
   syncFromManager,
   refreshChannelColors,
 } = useLayerChannel({ nrrdTools });
@@ -201,9 +210,14 @@ function isReadOnly(layerId: Copper.LayerId): boolean {
   return LAYER_CONFIGS.find(l => l.id === layerId)?.readOnly === true;
 }
 
+function onToggleLock(layerId: Copper.LayerId): void {
+  toggleLayerLock(layerId);
+}
+
 function onSelectLayer(layerId: Copper.LayerId): void {
   if (isLayerDisabled(layerId)) return;
   if (isReadOnly(layerId)) return;
+  if (isLayerLocked(layerId)) return;
   if (!layerVisibility.value[layerId]) return;
   setActiveLayer(layerId);
   emitter.emit("LayerChannel:ActiveChanged", { layerId, channel: activeChannel.value });
@@ -364,6 +378,17 @@ onUnmounted(() => {
 .readonly-icon {
     opacity: 0.5;
     margin-left: 4px;
+}
+
+.lockable-icon {
+    margin-left: 4px;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s, color 0.2s;
+}
+
+.lockable-icon:hover {
+    opacity: 1;
 }
 
 .layer-item.is-disabled .layer-vis-btn {
