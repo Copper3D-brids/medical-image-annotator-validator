@@ -130,9 +130,9 @@ export function useMaskOperations(deps: IMaskOperationsDeps) {
             }
 
             // Layer 3 (Clinician Validated) — editable output, init if no data
-            const hasLayer3 = Number(caseDetail.output.clinician_validated_nii_size || 0) > 0;
+            const hasLayer3 = Number(caseDetail.output.clinician_validated_nii_LPS_size || 0) > 0;
             if (hasLayer3) {
-                const voxels = await useNiftiVoxelData(caseDetail.output.clinician_validated_nii_path!);
+                const voxels = await useNiftiVoxelData(caseDetail.output.clinician_validated_nii_LPS_path!);
                 if (voxels) layerBuffers.set('layer3', voxels);
             } else {
                 await sendInitMaskToBackend("layer3");

@@ -183,8 +183,8 @@ def convert_nii_to_gltf(case_output: CaseOutput, layer_id: str = None, glb_path:
             nii_path_attr = f"mask_{layer_id}_nii_path"
             nii_path = getattr(case_output, nii_path_attr, None)
         else:
-            # Default: use clinician_validated_nii_path
-            nii_path = getattr(case_output, 'clinician_validated_nii_path', None)
+            # Default: use clinician_validated_nii_LPS_path
+            nii_path = getattr(case_output, 'clinician_validated_nii_LPS_path', None)
 
     if not nii_path:
         print(f"Error: NIfTI path not configured")
