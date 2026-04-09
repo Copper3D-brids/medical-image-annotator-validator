@@ -81,19 +81,23 @@ class CaseOutput(Base):
     mask_meta_json_path = Column(String, nullable=True)
     mask_meta_json_size = Column(Integer, nullable=True)
 
-    # Config.OUTPUTS[1]: "clinician_validated_nii_LPS"
+    # Config.OUTPUTS[1]: "researcher_manual_nii_LPS"
+    researcher_manual_nii_LPS_path = Column(String, nullable=True)
+    researcher_manual_nii_LPS_size = Column(Integer, nullable=True)
+
+    # Config.OUTPUTS[2]: "clinician_validated_nii_LPS"
     clinician_validated_nii_LPS_path = Column(String, nullable=True)
     clinician_validated_nii_LPS_size = Column(Integer, nullable=True)
 
-    # Config.OUTPUTS[2]: "clinician_validated_nii_RAI"
+    # Config.OUTPUTS[3]: "clinician_validated_nii_RAI"
     clinician_validated_nii_RAI_path = Column(String, nullable=True)
     clinician_validated_nii_RAI_size = Column(Integer, nullable=True)
 
-    # Config.OUTPUTS[3]: "mask_glb"
+    # Config.OUTPUTS[4]: "mask_glb"
     mask_glb_path = Column(String, nullable=True)
     mask_glb_size = Column(Integer, nullable=True)
 
-    # Config.OUTPUTS[4]: "validate_json"
+    # Config.OUTPUTS[5]: "validate_json"
     validate_json_path = Column(String, nullable=True)
     validate_json_size = Column(Integer, nullable=True)
 
