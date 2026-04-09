@@ -23,8 +23,10 @@ interface IInput {
 interface IOutput {
     mask_meta_json_path: string;
     mask_meta_json_size: string | number;
-    clinician_validated_nii_path?: string;
-    clinician_validated_nii_size?: string | number;
+    clinician_validated_nii_LPS_path?: string;
+    clinician_validated_nii_LPS_size?: string | number;
+    clinician_validated_nii_RAI_path?: string;
+    clinician_validated_nii_RAI_size?: string | number;
     mask_glb_path: string;
     mask_glb_size: string | number;
     validate_json?: IValidateStatus;

@@ -255,8 +255,9 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                     }
                     output_paths["validate_json"].write_text(json.dumps(default_validate, indent=2))
 
-                    # Auto-copy researcher_manual_nii → clinician_validated_nii
-                    clinician_nii_path = output_paths["clinician_validated_nii"]
+                    # Auto-copy researcher_manual_nii → clinician_validated_nii_LPS
+                    clinician_lps_path = output_paths["clinician_validated_nii_LPS"]
+                    clinician_rai_path = output_paths["clinician_validated_nii_RAI"]
                     researcher_nii_url = resolved_results[cohort].get("researcher_manual_nii")
                     if researcher_nii_url:
                         yield sse_event("progress", {
@@ -268,18 +269,32 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                         try:
                             bucket, object_path = minio_service._extract_bucket_and_path(researcher_nii_url)
                             response = minio_service.client.get_object(bucket, object_path)
-                            with open(clinician_nii_path, 'wb') as f:
+                            with open(clinician_lps_path, 'wb') as f:
                                 shutil.copyfileobj(response, f)
                             response.close()
                             response.release_conn()
-                            print(f"  Copied researcher_manual_nii → {clinician_nii_path}")
+                            print(f"  Copied researcher_manual_nii → {clinician_lps_path}")
                         except Exception as e:
                             print(f"  Warning: Failed to copy researcher_manual_nii for {cohort}: {e}")
-                            if not clinician_nii_path.exists():
-                                clinician_nii_path.touch()
+                            if not clinician_lps_path.exists():
+                                clinician_lps_path.touch()
                     else:
-                        if not clinician_nii_path.exists():
-                            clinician_nii_path.touch()
+                        if not clinician_lps_path.exists():
+                            clinician_lps_path.touch()
+
+                    # Generate RAI from LPS
+                    if clinician_lps_path.exists() and clinician_lps_path.stat().st_size > 0:
+                        try:
+                            from utils.nifti_orientation import convert_lps_to_rai
+                            convert_lps_to_rai(str(clinician_lps_path), str(clinician_rai_path))
+                            print(f"  Generated RAI from LPS for {cohort}")
+                        except Exception as e:
+                            print(f"  Warning: Failed to generate RAI for {cohort}: {e}")
+                            if not clinician_rai_path.exists():
+                                clinician_rai_path.touch()
+                    else:
+                        if not clinician_rai_path.exists():
+                            clinician_rai_path.touch()
 
                     # Create empty GLB placeholder (will be overwritten by conversion)
                     mask_glb_path = output_paths["mask_glb"]
@@ -299,7 +314,7 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                     db.refresh(case_output_record)
 
                     # Auto-convert NII → GLTF (only if we have actual NII data)
-                    if researcher_nii_url and clinician_nii_path.stat().st_size > 0:
+                    if researcher_nii_url and clinician_lps_path.stat().st_size > 0:
                         yield sse_event("progress", {
                             "step": "convert_gltf",
                             "case": cohort,
@@ -309,7 +324,7 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                         try:
                             result = convert_nii_to_gltf(
                                 case_output_record,
-                                nii_path=str(clinician_nii_path),
+                                nii_path=str(clinician_lps_path),
                                 glb_path=str(mask_glb_path)
                             )
                             if result:

@@ -84,10 +84,11 @@ class Config:
     SUBJECTS_METADATA_PATH = "subjects.xlsx"
     INPUTS = ["contrast_pre", "contrast_1", "contrast_2", "contrast_3", "contrast_4", "registration_pre",
               "registration_1", "registration_2", "registration_3", "registration_4", "model_predicted_nii", "researcher_manual_nii"]
-    OUTPUTS = ["mask_meta_json", "clinician_validated_nii", "mask_glb", "validate_json"]
+    OUTPUTS = ["mask_meta_json", "clinician_validated_nii_LPS", "clinician_validated_nii_RAI", "mask_glb", "validate_json"]
     OUTPUT_EXTENSIONS = {
         "mask_meta_json": ".json",
-        "clinician_validated_nii": ".nii.gz",
+        "clinician_validated_nii_LPS": ".nii.gz",
+        "clinician_validated_nii_RAI": ".nii.gz",
         "mask_glb": ".glb",
         "validate_json": ".json",
     }
