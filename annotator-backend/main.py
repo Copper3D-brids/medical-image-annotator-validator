@@ -223,24 +223,24 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                         setattr(case.input, field, value)
 
                 # 5. Output — one file per sam folder, driven by Config.OUTPUTS
-                if not case.output:
-                    case_folder = output_dir / cohort
-                    output_names = Config.OUTPUTS
-                    output_extensions = Config.OUTPUT_EXTENSIONS
+                case_folder = output_dir / cohort
+                output_names = Config.OUTPUTS
+                output_extensions = Config.OUTPUT_EXTENSIONS
 
-                    # Create sam folders and file paths dynamically
-                    output_paths = {}  # output_name -> Path
-                    for idx, out_name in enumerate(output_names, start=1):
-                        sam_folder = case_folder / f"sam-{idx}"
-                        sam_folder.mkdir(parents=True, exist_ok=True)
-                        ext = output_extensions.get(out_name, "")
-                        output_paths[out_name] = sam_folder / f"{out_name}{ext}"
+                # Create sam folders and file paths dynamically
+                output_paths = {}  # output_name -> Path
+                for idx, out_name in enumerate(output_names, start=1):
+                    sam_folder = case_folder / f"sam-{idx}"
+                    sam_folder.mkdir(parents=True, exist_ok=True)
+                    ext = output_extensions.get(out_name, "")
+                    output_paths[out_name] = sam_folder / f"{out_name}{ext}"
 
-                    # Initialize mask_meta_json (empty JSON)
-                    if not output_paths["mask_meta_json"].exists():
-                        output_paths["mask_meta_json"].write_text("{}")
+                # Initialize mask_meta_json (empty JSON) if missing
+                if not output_paths["mask_meta_json"].exists():
+                    output_paths["mask_meta_json"].write_text("{}")
 
-                    # Initialize validate_json with default values
+                # Initialize validate_json with default values if missing
+                if not output_paths["validate_json"].exists():
                     yield sse_event("progress", {
                         "step": "create_validate_json",
                         "case": cohort,
@@ -255,108 +255,127 @@ async def get_tool_config(request: ToolConfigRequest, db: Session = Depends(get_
                     }
                     output_paths["validate_json"].write_text(json.dumps(default_validate, indent=2))
 
-                    # Auto-copy researcher_manual_nii → researcher_manual_nii_LPS → clinician_validated_nii_LPS
-                    researcher_lps_path = output_paths["researcher_manual_nii_LPS"]
-                    clinician_lps_path = output_paths["clinician_validated_nii_LPS"]
-                    clinician_rai_path = output_paths["clinician_validated_nii_RAI"]
-                    researcher_nii_url = resolved_results[cohort].get("researcher_manual_nii")
-                    if researcher_nii_url:
-                        yield sse_event("progress", {
-                            "step": "copy_nii",
-                            "case": cohort,
-                            "total_cases": total_cases,
-                            "current": case_idx + 1
-                        })
-                        try:
-                            # Step 1: Download from MinIO → researcher_manual_nii_LPS
+                # Auto-copy researcher_manual_nii → researcher_manual_nii_LPS → clinician_validated_nii_LPS
+                researcher_lps_path = output_paths["researcher_manual_nii_LPS"]
+                clinician_lps_path = output_paths["clinician_validated_nii_LPS"]
+                clinician_rai_path = output_paths["clinician_validated_nii_RAI"]
+                researcher_nii_url = resolved_results[cohort].get("researcher_manual_nii")
+
+                researcher_lps_missing = (
+                    not researcher_lps_path.exists() or researcher_lps_path.stat().st_size == 0
+                )
+                clinician_lps_missing = (
+                    not clinician_lps_path.exists() or clinician_lps_path.stat().st_size == 0
+                )
+
+                if researcher_nii_url and (researcher_lps_missing or clinician_lps_missing):
+                    yield sse_event("progress", {
+                        "step": "copy_nii",
+                        "case": cohort,
+                        "total_cases": total_cases,
+                        "current": case_idx + 1
+                    })
+                    try:
+                        # Step 1: Download from MinIO → researcher_manual_nii_LPS (only if missing)
+                        if researcher_lps_missing:
                             bucket, object_path = minio_service._extract_bucket_and_path(researcher_nii_url)
                             response = minio_service.client.get_object(bucket, object_path)
                             with open(researcher_lps_path, 'wb') as f:
                                 shutil.copyfileobj(response, f)
                             response.close()
                             response.release_conn()
-                            print(f"  Copied researcher_manual_nii → {researcher_lps_path}")
+                            print(f"  Downloaded researcher_manual_nii → {researcher_lps_path}")
 
-                            # Step 2: Copy researcher_manual_nii_LPS → clinician_validated_nii_LPS
+                        # Step 2: Copy researcher_manual_nii_LPS → clinician_validated_nii_LPS (only if missing)
+                        if clinician_lps_missing:
                             if researcher_lps_path.exists() and researcher_lps_path.stat().st_size > 0:
                                 shutil.copy2(str(researcher_lps_path), str(clinician_lps_path))
                                 print(f"  Copied researcher_manual_nii_LPS → {clinician_lps_path}")
-                            else:
-                                if not clinician_lps_path.exists():
-                                    clinician_lps_path.touch()
-                        except Exception as e:
-                            print(f"  Warning: Failed to copy researcher_manual_nii for {cohort}: {e}")
-                            if not researcher_lps_path.exists():
-                                researcher_lps_path.touch()
-                            if not clinician_lps_path.exists():
+                            elif not clinician_lps_path.exists():
                                 clinician_lps_path.touch()
-                    else:
+                    except Exception as e:
+                        print(f"  Warning: Failed to copy researcher_manual_nii for {cohort}: {e}")
                         if not researcher_lps_path.exists():
                             researcher_lps_path.touch()
                         if not clinician_lps_path.exists():
                             clinician_lps_path.touch()
+                else:
+                    if not researcher_lps_path.exists():
+                        researcher_lps_path.touch()
+                    if not clinician_lps_path.exists():
+                        clinician_lps_path.touch()
 
-                    # Generate RAI from LPS
-                    if clinician_lps_path.exists() and clinician_lps_path.stat().st_size > 0:
-                        try:
-                            from utils.nifti_orientation import convert_lps_to_rai
-                            convert_lps_to_rai(str(clinician_lps_path), str(clinician_rai_path))
-                            print(f"  Generated RAI from LPS for {cohort}")
-                        except Exception as e:
-                            print(f"  Warning: Failed to generate RAI for {cohort}: {e}")
-                            if not clinician_rai_path.exists():
-                                clinician_rai_path.touch()
-                    else:
+                # Generate RAI from LPS if missing
+                rai_missing = (
+                    not clinician_rai_path.exists() or clinician_rai_path.stat().st_size == 0
+                )
+                if rai_missing and clinician_lps_path.exists() and clinician_lps_path.stat().st_size > 0:
+                    try:
+                        from utils.nifti_orientation import convert_lps_to_rai
+                        convert_lps_to_rai(str(clinician_lps_path), str(clinician_rai_path))
+                        print(f"  Generated RAI from LPS for {cohort}")
+                    except Exception as e:
+                        print(f"  Warning: Failed to generate RAI for {cohort}: {e}")
                         if not clinician_rai_path.exists():
                             clinician_rai_path.touch()
+                elif not clinician_rai_path.exists():
+                    clinician_rai_path.touch()
 
-                    # Create empty GLB placeholder (will be overwritten by conversion)
-                    mask_glb_path = output_paths["mask_glb"]
-                    if not mask_glb_path.exists():
-                        mask_glb_path.touch()
+                # Create empty GLB placeholder (will be overwritten by conversion)
+                mask_glb_path = output_paths["mask_glb"]
+                if not mask_glb_path.exists():
+                    mask_glb_path.touch()
 
-                    # Create CaseOutput record dynamically from Config.OUTPUTS
-                    case_output_kwargs = {"case_id": case.id, "temp_dataset_name": "medical-image-annotator-outputs"}
-                    for out_name in output_names:
-                        p = output_paths[out_name]
-                        case_output_kwargs[f"{out_name}_path"] = str(p)
-                        case_output_kwargs[f"{out_name}_size"] = p.stat().st_size
+                # Upsert CaseOutput record dynamically from Config.OUTPUTS
+                case_output_kwargs = {"temp_dataset_name": "medical-image-annotator-outputs"}
+                for out_name in output_names:
+                    p = output_paths[out_name]
+                    case_output_kwargs[f"{out_name}_path"] = str(p)
+                    case_output_kwargs[f"{out_name}_size"] = p.stat().st_size if p.exists() else 0
 
-                    case_output_record = CaseOutput(**case_output_kwargs)
+                if not case.output:
+                    case_output_record = CaseOutput(case_id=case.id, **case_output_kwargs)
                     db.add(case_output_record)
-                    db.commit()
-                    db.refresh(case_output_record)
+                else:
+                    case_output_record = case.output
+                    for k, v in case_output_kwargs.items():
+                        setattr(case_output_record, k, v)
+                db.commit()
+                db.refresh(case_output_record)
 
-                    # Auto-convert NII → GLTF (only if we have actual NII data)
-                    if researcher_nii_url and clinician_lps_path.stat().st_size > 0:
-                        yield sse_event("progress", {
-                            "step": "convert_gltf",
-                            "case": cohort,
-                            "total_cases": total_cases,
-                            "current": case_idx + 1
-                        })
-                        try:
-                            result = convert_nii_to_gltf(
-                                case_output_record,
-                                nii_path=str(clinician_lps_path),
-                                glb_path=str(mask_glb_path)
-                            )
-                            if result:
-                                case_output_record.mask_glb_size = Path(result).stat().st_size
-                                print(f"  Converted NII → GLTF for {cohort}")
-                            else:
-                                print(f"  Warning: GLTF conversion returned None for {cohort} (possibly empty mask)")
-                        except Exception as e:
-                            print(f"  Warning: GLTF conversion failed for {cohort}: {e}")
-
-                    # Update DB
+                # Auto-convert NII → GLTF if GLB missing/empty and we have NII data
+                glb_missing = (
+                    not mask_glb_path.exists() or mask_glb_path.stat().st_size == 0
+                )
+                if glb_missing and researcher_nii_url and clinician_lps_path.exists() and clinician_lps_path.stat().st_size > 0:
                     yield sse_event("progress", {
-                        "step": "update_db",
+                        "step": "convert_gltf",
                         "case": cohort,
                         "total_cases": total_cases,
                         "current": case_idx + 1
                     })
-                    db.commit()
+                    try:
+                        result = convert_nii_to_gltf(
+                            case_output_record,
+                            nii_path=str(clinician_lps_path),
+                            glb_path=str(mask_glb_path)
+                        )
+                        if result:
+                            case_output_record.mask_glb_size = Path(result).stat().st_size
+                            print(f"  Converted NII → GLTF for {cohort}")
+                        else:
+                            print(f"  Warning: GLTF conversion returned None for {cohort} (possibly empty mask)")
+                    except Exception as e:
+                        print(f"  Warning: GLTF conversion failed for {cohort}: {e}")
+
+                # Update DB
+                yield sse_event("progress", {
+                    "step": "update_db",
+                    "case": cohort,
+                    "total_cases": total_cases,
+                    "current": case_idx + 1
+                })
+                db.commit()
 
             # Final commit and success event
             db.commit()
