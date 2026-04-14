@@ -1,0 +1,26 @@
+# Runtime / mounted volumes
+data/
+minio_data/
+outputs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# VCS & IDE
+.git
+.gitignore
+.idea/
+.vscode/
+
+# Env & secrets
+.env
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
