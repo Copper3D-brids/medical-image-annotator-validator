@@ -113,7 +113,7 @@
  */
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import emitter from "@/plugins/custom-emitter";
-import * as Copper from "copper3d";
+import * as Copper from "@/ts/index";
 import { useLayerChannel, LAYER_CONFIGS, type ChannelConfig } from "@/composables/left-panel";
 
 // ===== NrrdTools ref (received via emitter) =====
