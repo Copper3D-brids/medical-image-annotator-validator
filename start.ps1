@@ -49,7 +49,7 @@ Write-Host ""
 
 # Run in FOREGROUND — when this window is closed, docker compose receives
 # CTRL_CLOSE_EVENT and stops all containers automatically
-& docker compose up
+& docker compose up --build --force-recreate
 
 # Cleanup browser job if still running
 Remove-Job $browserJob -Force 2>$null
