@@ -15,7 +15,7 @@ services:
       - MINIO_SECRET_KEY=${MINIO_SERVER_SECRET_KEY:-minioadmin}
       # Nginx route prefix — used to construct externally-accessible proxy URLs
       # Must match the location block in nginx: /plugin/<expose_name>
-      - PLUGIN_ROUTE_PREFIX=${PLUGIN_ROUTE_PREFIX:-/plugin/medical-image-annotator}
+      - PLUGIN_ROUTE_PREFIX=${PLUGIN_ROUTE_PREFIX:-/plugin/medical-image-annotator-validator}
     restart: unless-stopped
     volumes:
       - digitaltwins_portal_datasets:/annotator_gui_backend/data
