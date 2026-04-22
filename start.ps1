@@ -21,6 +21,12 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host ""
 }
 
+# Guarantee existing containers are stopped so the listener doesn't falsely trigger on old containers
+Write-Host "Stopping any existing containers..."
+& docker compose down 2>&1 | Out-Null
+Write-Host "Ready to build and start!"
+Write-Host ""
+
 # Open browser in background once frontend responds on port 80
 $browserJob = Start-Job -ScriptBlock {
     $timestamp = [int][double]::Parse((Get-Date -UFormat %s))
