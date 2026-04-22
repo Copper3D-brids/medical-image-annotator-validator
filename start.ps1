@@ -23,7 +23,8 @@ if ($LASTEXITCODE -ne 0) {
 
 # Open browser in background once frontend responds on port 80
 $browserJob = Start-Job -ScriptBlock {
-    $url = "http://localhost:80"
+    $timestamp = [int][double]::Parse((Get-Date -UFormat %s))
+    $url = "http://localhost:80/?t=$timestamp"
     $timeout = 120  # seconds
     $elapsed = 0
     while ($elapsed -lt $timeout) {
@@ -43,6 +44,7 @@ Write-Host "Building and starting services (closing this window will stop all co
 Write-Host ""
 Write-Host "============================================"
 Write-Host " Frontend:      http://localhost:80"
+Write-Host " (Browser will open automatically with a cache-buster query parameter)"
 Write-Host " MinIO Console: http://localhost:9001"
 Write-Host "============================================"
 Write-Host ""
